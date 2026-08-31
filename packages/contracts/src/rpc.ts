@@ -1,6 +1,11 @@
 import * as Schema from "effect/Schema";
 import * as Rpc from "effect/unstable/rpc/Rpc";
 import * as RpcGroup from "effect/unstable/rpc/RpcGroup";
+import {
+  TaskWorkbenchSnapshot,
+  TaskWorkbenchMutation,
+  TaskWorkbenchError,
+} from "./taskWorkbench.ts";
 
 import { ExternalLauncherError, LaunchEditorInput } from "./editor.ts";
 import {
@@ -207,6 +212,8 @@ import {
 import { VcsError } from "./vcs.ts";
 
 export const WS_METHODS = {
+  taskWorkbenchMutate: "tasks.mutate",
+  taskWorkbenchSubscribe: "tasks.subscribe",
   // Project registry methods
   projectsList: "projects.list",
   projectsAdd: "projects.add",
@@ -1018,6 +1025,17 @@ export const WsSubscribeResourceTelemetryRpc = Rpc.make(WS_METHODS.subscribeReso
 });
 
 export const WsRpcGroup = RpcGroup.make(
+  Rpc.make(WS_METHODS.taskWorkbenchMutate, {
+    payload: TaskWorkbenchMutation,
+    success: Schema.Void,
+    error: Schema.Union([TaskWorkbenchError, EnvironmentAuthorizationError]),
+  }),
+  Rpc.make(WS_METHODS.taskWorkbenchSubscribe, {
+    payload: Schema.Struct({}),
+    success: TaskWorkbenchSnapshot,
+    error: Schema.Union([TaskWorkbenchError, EnvironmentAuthorizationError]),
+    stream: true,
+  }),
   WsServerProbeRpc,
   WsServerGetConfigRpc,
   WsServerRefreshProvidersRpc,

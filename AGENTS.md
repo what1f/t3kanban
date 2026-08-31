@@ -1,3 +1,17 @@
+# t3kanban
+
+## Fork development
+
+- 开发任务化、导航、看板／列表、收件箱或任务详情前，读取 `.scratch/lite-multica-mvp/spec.md`；这是本工程的产品基线。
+- 开始 MVP 实现前，读取 `docs/internals/t3kanban-development.md`，按其中的增量顺序开发和验收。
+- JS/TS 包管理使用 pnpm，版本沿用根 `package.json` 的 `packageManager`。
+- 本工程按 Owner 要求使用本地 Markdown 规格与开发记录，放在 `.scratch/lite-multica-mvp/`；这一约定优先于下文的上游工作材料规则。
+- 开发服务使用根目录的 `pnpm dev`／`pnpm dev:desktop`，数据位于本工程 `.t3/`。测试使用合成数据。
+
+## Upstream engineering guidance
+
+以下保留 T3 上游工程指南，产品范围以本工程 spec 为准。
+
 # T3 Code
 
 T3 Code is a minimal GUI for coding agents. A Node WebSocket server wraps provider CLIs (Codex, Claude Code, Cursor, Grok, OpenCode) and serves web, desktop, and mobile clients.

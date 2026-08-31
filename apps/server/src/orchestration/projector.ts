@@ -290,6 +290,7 @@ export function projectEvent(
           OrchestrationThread,
           {
             id: payload.threadId,
+            ...(payload.task !== undefined ? { task: payload.task } : {}),
             projectId: payload.projectId,
             title: payload.title,
             modelSelection: payload.modelSelection,
@@ -459,6 +460,7 @@ export function projectEvent(
         Effect.map((payload) => ({
           ...nextBase,
           threads: updateThread(nextBase.threads, payload.threadId, {
+            ...(payload.task !== undefined ? { task: payload.task } : {}),
             ...(payload.title !== undefined ? { title: payload.title } : {}),
             ...(payload.titleRegeneration !== undefined
               ? { titleRegeneration: payload.titleRegeneration }

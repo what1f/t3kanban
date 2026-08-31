@@ -215,6 +215,7 @@ export function applyThreadDetailEvent(
         kind: "updated",
         thread: {
           ...thread,
+          ...(event.payload.task !== undefined ? { task: event.payload.task } : {}),
           ...(event.payload.title !== undefined ? { title: event.payload.title } : {}),
           ...(event.payload.titleRegeneration !== undefined
             ? { titleRegeneration: event.payload.titleRegeneration }

@@ -145,6 +145,12 @@ describe("ProviderCommandReactor", () => {
 
   async function createHarness(input?: {
     readonly baseDir?: string;
+    readonly initialTask?: {
+      readonly content: string;
+      readonly attachments: readonly [];
+      readonly statusId: string;
+      readonly orderKey: string;
+    };
     readonly threadModelSelection?: ModelSelection;
     readonly sessionModelSwitch?: "unsupported" | "in-session";
     readonly requiresNewThreadForModelChange?: boolean;
@@ -428,6 +434,7 @@ describe("ProviderCommandReactor", () => {
       ),
       Layer.provideMerge(ServerSettingsService.layerTest()),
       Layer.provideMerge(ServerConfig.layerTest(process.cwd(), baseDir)),
+      Layer.provideMerge(SqlitePersistenceMemory),
       Layer.provideMerge(NodeServices.layer),
     );
     runtime = ManagedRuntime.make(layer);
@@ -460,6 +467,7 @@ describe("ProviderCommandReactor", () => {
         runtimeMode: "approval-required",
         branch: null,
         worktreePath: null,
+        ...(input?.initialTask !== undefined ? { task: input.initialTask } : {}),
         createdAt: now,
       }),
     );
@@ -567,6 +575,93 @@ describe("ProviderCommandReactor", () => {
     expect(thread?.session?.status).toBe("starting");
     expect(thread?.session?.runtimeMode).toBe("approval-required");
   });
+
+  effectIt.effect(
+    "does not inject a task reminder into the first turn of a newly created task",
+    () =>
+      Effect.gen(function* () {
+        const harness = yield* Effect.promise(() =>
+          createHarness({
+            initialTask: {
+              content: "Describe your capabilities",
+              attachments: [],
+              statusId: "todo",
+              orderKey: "1",
+            },
+          }),
+        );
+        const now = "2026-01-01T00:00:00.000Z";
+
+        yield* harness.engine.dispatch({
+          type: "thread.turn.start",
+          commandId: CommandId.make("cmd-new-task-first-turn"),
+          threadId: ThreadId.make("thread-1"),
+          message: {
+            messageId: asMessageId("user-message-new-task-first-turn"),
+            role: "user",
+            text: "Describe your capabilities",
+            attachments: [],
+          },
+          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          runtimeMode: "approval-required",
+          createdAt: now,
+        });
+
+        yield* Effect.promise(() => waitFor(() => harness.sendTurn.mock.calls.length === 1));
+        expect(harness.sendTurn.mock.calls[0]?.[0]).toMatchObject({
+          input: "Describe your capabilities",
+        });
+      }),
+  );
+
+  effectIt.effect("injects one hidden task reminder after task metadata changes", () =>
+    Effect.gen(function* () {
+      const harness = yield* Effect.promise(() => createHarness());
+      const now = "2026-01-01T00:00:00.000Z";
+
+      yield* harness.engine.dispatch({
+        type: "thread.meta.update",
+        commandId: CommandId.make("cmd-task-update-reminder"),
+        threadId: ThreadId.make("thread-1"),
+        task: {
+          content: "Implement the task reminder",
+          attachments: [],
+          statusId: "todo",
+          orderKey: "1",
+        },
+      });
+
+      for (const [index, text] of ["start the task", "continue the task"].entries()) {
+        yield* harness.engine.dispatch({
+          type: "thread.turn.start",
+          commandId: CommandId.make(`cmd-task-reminder-turn-${index + 1}`),
+          threadId: ThreadId.make("thread-1"),
+          message: {
+            messageId: asMessageId(`user-message-task-reminder-${index + 1}`),
+            role: "user",
+            text,
+            attachments: [],
+          },
+          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          runtimeMode: "approval-required",
+          createdAt: now,
+        });
+        yield* Effect.promise(() =>
+          waitFor(() => harness.sendTurn.mock.calls.length === index + 1),
+        );
+      }
+
+      expect(harness.sendTurn.mock.calls[0]?.[0]).toMatchObject({
+        input: expect.stringContaining("call get_current_task"),
+      });
+      expect(harness.sendTurn.mock.calls[0]?.[0]).toMatchObject({
+        input: expect.stringContaining("start the task"),
+      });
+      expect(harness.sendTurn.mock.calls[1]?.[0]).toMatchObject({
+        input: "continue the task",
+      });
+    }),
+  );
 
   effectIt.effect("projects starting before a slow provider session finishes", () =>
     Effect.gen(function* () {

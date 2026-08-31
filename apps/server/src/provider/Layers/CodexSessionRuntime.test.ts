@@ -14,6 +14,7 @@ import {
   codexDefaultModeDeveloperInstructions,
   codexPlanModeDeveloperInstructions,
 } from "../CodexDeveloperInstructions.ts";
+import { AGENT_SYSTEM_PROMPT } from "../AgentSystemPrompt.ts";
 import { codexSessionAppServerArgs } from "./codexLaunchArgs.ts";
 import {
   buildTurnStartParams,
@@ -463,6 +464,10 @@ describe("buildCodexDeveloperInstructions", () => {
     NodeAssert.match(instructions, /T3 Code/);
     NodeAssert.match(instructions, /Codex harness/);
     NodeAssert.match(instructions, /as gpt-5\.3-codex with high reasoning effort/);
+    NodeAssert.match(instructions, /Set the task to `blocked` when you cannot make progress/);
+    NodeAssert.match(instructions, /set it back to `in-progress` once you resume work/);
+    NodeAssert.match(instructions, /The task's `content` field stores Markdown/);
+    NodeAssert.ok(instructions.endsWith(AGENT_SYSTEM_PROMPT));
   });
 
   it("includes runtime info alongside plan mode instructions", () => {

@@ -13,6 +13,7 @@ import {
   resolveProjectExpanded,
   setDefaultAdvertisedEndpointKey,
   setProjectExpanded,
+  setProjectPinned,
   setThreadChangedFilesExpanded,
   type UiState,
 } from "./uiStateStore";
@@ -21,6 +22,7 @@ function makeUiState(overrides: Partial<UiState> = {}): UiState {
   return {
     projectExpandedById: {},
     projectOrder: [],
+    pinnedProjectKeys: [],
     threadLastVisitedAtById: {},
     threadChangedFilesExpandedById: {},
     defaultAdvertisedEndpointKey: null,
@@ -79,6 +81,17 @@ describe("uiStateStore pure functions", () => {
       "environment-b:/repo": false,
     });
     expect(setProjectExpanded(next, keys, false)).toBe(next);
+  });
+
+  it("keeps newly pinned projects at the front and removes them cleanly", () => {
+    const initialState = makeUiState({ pinnedProjectKeys: ["project-a"] });
+
+    const pinned = setProjectPinned(initialState, "project-b", true);
+
+    expect(pinned.pinnedProjectKeys).toEqual(["project-b", "project-a"]);
+    expect(setProjectPinned(pinned, "project-b", true)).toBe(pinned);
+    expect(setProjectPinned(pinned, "project-b", false).pinnedProjectKeys).toEqual(["project-a"]);
+    expect(setProjectPinned(initialState, "missing", false)).toBe(initialState);
   });
 
   it("reorders from the current atom-derived project order", () => {
@@ -154,6 +167,7 @@ describe("parsePersistedState", () => {
         invalid: "no" as unknown as boolean,
       },
       projectOrder: ["physical-b", "", "physical-a", "physical-b"],
+      pinnedProjectKeys: ["physical-a", "", "physical-a"],
       threadLastVisitedAtById: {
         "environment:thread-1": "2026-02-25T12:35:00.000Z",
         invalid: "not-a-date",
@@ -173,6 +187,7 @@ describe("parsePersistedState", () => {
         logical: false,
       },
       projectOrder: ["physical-b", "physical-a"],
+      pinnedProjectKeys: ["physical-a"],
       threadLastVisitedAtById: {
         "environment:thread-1": "2026-02-25T12:35:00.000Z",
       },
@@ -270,6 +285,7 @@ describe("uiStateStore persistence", () => {
         logical: false,
       },
       projectOrder: ["physical-b", "physical-a"],
+      pinnedProjectKeys: ["physical-a"],
       threadLastVisitedAtById: {
         "environment:thread-1": "2026-02-25T12:35:00.000Z",
       },
@@ -292,6 +308,7 @@ describe("uiStateStore persistence", () => {
         logical: false,
       },
       projectOrder: ["physical-b", "physical-a"],
+      pinnedProjectKeys: ["physical-a"],
       threadLastVisitedAtById: {
         "environment:thread-1": "2026-02-25T12:35:00.000Z",
       },

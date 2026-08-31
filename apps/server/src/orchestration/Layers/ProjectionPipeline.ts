@@ -3,6 +3,7 @@ import {
   type ChatAttachment,
   type OrchestrationEvent,
   type OrchestrationSessionStatus,
+  type TaskNotification,
   ThreadId,
 } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
@@ -11,6 +12,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Stream from "effect/Stream";
+import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
 import { toPersistenceSqlError, type ProjectionRepositoryError } from "../../persistence/Errors.ts";
@@ -65,6 +67,7 @@ export const ORCHESTRATION_PROJECTOR_NAMES = {
   threadTurns: "projection.thread-turns",
   checkpoints: "projection.checkpoints",
   pendingApprovals: "projection.pending-approvals",
+  taskInbox: "projection.task-inbox",
 } as const;
 
 type ProjectorName =
@@ -508,6 +511,68 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
     const path = yield* Path.Path;
     const serverConfig = yield* ServerConfig;
 
+    const insertTaskNotification = Effect.fn("insertTaskNotification")(
+      function* (notification: TaskNotification) {
+        yield* sql`UPDATE task_inbox
+          SET deleted_at = ${notification.createdAt}
+          WHERE thread_id = ${notification.threadId}
+            AND deleted_at IS NULL
+            AND id <> ${notification.id}`;
+        yield* sql`INSERT INTO task_inbox (
+            id, thread_id, kind, summary, created_at, read_at, deleted_at
+          ) VALUES (
+            ${notification.id}, ${notification.threadId}, ${notification.kind}, ${notification.summary}, ${notification.createdAt}, NULL, NULL
+          ) ON CONFLICT (id) DO UPDATE SET
+            thread_id = excluded.thread_id,
+            kind = excluded.kind,
+            summary = excluded.summary,
+            created_at = excluded.created_at,
+            read_at = NULL,
+            deleted_at = NULL`;
+      },
+      Effect.mapError(toPersistenceSqlError("taskInbox.insert")),
+    );
+
+    const turnNotificationId = (turn: ProjectionTurn) =>
+      `${turn.threadId}:turn:${turn.pendingMessageId ?? turn.turnId}`;
+
+    const readTurnSummary = Effect.fn("readTurnSummary")(function* (turn: ProjectionTurn) {
+      if (turn.assistantMessageId === null) return null;
+      const message = yield* projectionThreadMessageRepository.getByMessageId({
+        messageId: turn.assistantMessageId,
+      });
+      return Option.isSome(message) && message.value.text ? message.value.text.slice(0, 500) : null;
+    });
+
+    const insertTurnNotification = Effect.fn("insertTurnNotification")(function* (input: {
+      readonly turn: ProjectionTurn;
+      readonly kind: TaskNotification["kind"];
+      readonly createdAt: string;
+      readonly fallbackSummary: string;
+      readonly preferredSummary?: string;
+    }) {
+      const summary =
+        input.preferredSummary ?? (yield* readTurnSummary(input.turn)) ?? input.fallbackSummary;
+      yield* insertTaskNotification({
+        id: turnNotificationId(input.turn),
+        threadId: input.turn.threadId,
+        kind: input.kind,
+        summary,
+        createdAt: input.createdAt,
+        readAt: null,
+      });
+    });
+
+    const amendTurnNotification = Effect.fn("amendTurnNotification")(
+      function* (turn: ProjectionTurn) {
+        const summary = yield* readTurnSummary(turn);
+        if (!summary) return;
+        yield* sql`UPDATE task_inbox SET summary = ${summary}
+          WHERE id = ${turnNotificationId(turn)} AND kind = 'completed'`;
+      },
+      Effect.mapError(toPersistenceSqlError("taskInbox.amend")),
+    );
+
     const applyProjectsProjection: ProjectorDefinition["apply"] = Effect.fn(
       "applyProjectsProjection",
     )(function* (event, _attachmentSideEffects) {
@@ -626,6 +691,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
       switch (event.type) {
         case "thread.created":
           yield* projectionThreadRepository.upsert({
+            ...(event.payload.task !== undefined ? { task: event.payload.task } : {}),
             threadId: event.payload.threadId,
             projectId: event.payload.projectId,
             title: event.payload.title,
@@ -818,6 +884,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
           }
           yield* projectionThreadRepository.upsert({
             ...existingRow.value,
+            ...(event.payload.task !== undefined ? { task: event.payload.task } : {}),
             ...(event.payload.title !== undefined ? { title: event.payload.title } : {}),
             ...(event.payload.titleRegeneration !== undefined
               ? {
@@ -1200,6 +1267,9 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
 
         case "thread.session-set": {
           const turnId = event.payload.session.activeTurnId;
+          const pendingTurnStart = yield* projectionTurnRepository.getPendingTurnStartByThreadId({
+            threadId: event.payload.threadId,
+          });
           if (turnId === null || event.payload.session.status !== "running") {
             if (
               event.payload.session.status === "error" ||
@@ -1220,22 +1290,67 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
             const existingTurns = yield* projectionTurnRepository.listByThreadId({
               threadId: event.payload.threadId,
             });
+            const runningTurns = existingTurns.filter(
+              (turn) => turn.turnId !== null && turn.state === "running",
+            );
+            const interruptedTurn =
+              settledTurnState === "interrupted" && runningTurns.length === 0
+                ? existingTurns.toReversed().find((turn) => turn.state === "interrupted")
+                : undefined;
+            const turnsToNotify = interruptedTurn ? [interruptedTurn] : runningTurns;
+            const kind =
+              settledTurnState === "error"
+                ? "failed"
+                : settledTurnState === "interrupted"
+                  ? "interrupted"
+                  : "completed";
+            const fallbackSummary =
+              event.payload.session.lastError ||
+              (kind === "failed"
+                ? "本轮执行失败"
+                : kind === "interrupted"
+                  ? "本轮执行已中断"
+                  : "本轮执行已结束");
             yield* Effect.forEach(
-              existingTurns.filter((turn) => turn.turnId !== null && turn.state === "running"),
-              (turn) =>
-                turn.turnId === null
-                  ? Effect.void
-                  : projectionTurnRepository.upsertByTurnId({
-                      ...turn,
-                      turnId: turn.turnId,
-                      state: settledTurnState,
-                      // A running turn's completedAt can only hold a mid-turn
-                      // placeholder checkpoint timestamp — the session leaving
-                      // "running" is the authoritative turn end.
-                      completedAt: event.payload.session.updatedAt,
-                    }),
+              turnsToNotify,
+              Effect.fn("settleTurnAndNotify")(function* (turn) {
+                const settledTurn = {
+                  ...turn,
+                  state: settledTurnState,
+                  completedAt: event.payload.session.updatedAt,
+                } satisfies ProjectionTurn;
+                if (turn.turnId !== null) {
+                  yield* projectionTurnRepository.upsertByTurnId({
+                    ...settledTurn,
+                    turnId: turn.turnId,
+                  });
+                }
+                yield* insertTurnNotification({
+                  turn: settledTurn,
+                  kind,
+                  createdAt: event.occurredAt,
+                  fallbackSummary,
+                  ...(event.payload.session.lastError
+                    ? { preferredSummary: event.payload.session.lastError }
+                    : {}),
+                });
+              }),
               { concurrency: 1 },
             );
+            if (
+              turnsToNotify.length === 0 &&
+              Option.isSome(pendingTurnStart) &&
+              (kind === "failed" || kind === "interrupted")
+            ) {
+              yield* insertTaskNotification({
+                id: `${event.payload.threadId}:turn:${pendingTurnStart.value.messageId}`,
+                threadId: event.payload.threadId,
+                kind,
+                summary: fallbackSummary,
+                createdAt: event.occurredAt,
+                readAt: null,
+              });
+            }
             return;
           }
 
@@ -1249,24 +1364,30 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
             otherRunningTurns.filter(
               (turn) => turn.turnId !== null && turn.turnId !== turnId && turn.state === "running",
             ),
-            (turn) =>
-              turn.turnId === null
-                ? Effect.void
-                : projectionTurnRepository.upsertByTurnId({
-                    ...turn,
-                    turnId: turn.turnId,
-                    state: "completed",
-                    completedAt: event.payload.session.updatedAt,
-                  }),
+            Effect.fn("completeSupersededTurn")(function* (turn) {
+              if (turn.turnId === null) return;
+              const completedTurn = {
+                ...turn,
+                state: "completed" as const,
+                completedAt: event.payload.session.updatedAt,
+              };
+              yield* projectionTurnRepository.upsertByTurnId({
+                ...completedTurn,
+                turnId: turn.turnId,
+              });
+              yield* insertTurnNotification({
+                turn: completedTurn,
+                kind: "completed",
+                createdAt: event.occurredAt,
+                fallbackSummary: "本轮执行已结束",
+              });
+            }),
             { concurrency: 1 },
           );
 
           const existingTurn = yield* projectionTurnRepository.getByTurnId({
             threadId: event.payload.threadId,
             turnId,
-          });
-          const pendingTurnStart = yield* projectionTurnRepository.getPendingTurnStartByThreadId({
-            threadId: event.payload.threadId,
           });
           if (Option.isSome(existingTurn)) {
             const nextState =
@@ -1347,17 +1468,18 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
           const session = yield* projectionThreadSessionRepository.getByThreadId({
             threadId: event.payload.threadId,
           });
-          const turnStillRunning =
-            Option.isSome(session) &&
-            session.value.status === "running" &&
-            session.value.activeTurnId === event.payload.turnId;
-          const settlesTurn = !event.payload.streaming && !turnStillRunning;
           const existingTurn = yield* projectionTurnRepository.getByTurnId({
             threadId: event.payload.threadId,
             turnId: event.payload.turnId,
           });
+          const turnStillRunning = Option.isSome(existingTurn)
+            ? existingTurn.value.state === "running"
+            : Option.isSome(session) &&
+              session.value.status === "running" &&
+              session.value.activeTurnId === event.payload.turnId;
+          const settlesTurn = !event.payload.streaming && !turnStillRunning;
           if (Option.isSome(existingTurn)) {
-            yield* projectionTurnRepository.upsertByTurnId({
+            const nextTurn = {
               ...existingTurn.value,
               assistantMessageId: event.payload.messageId,
               state: settlesTurn
@@ -1372,10 +1494,15 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
                 : existingTurn.value.completedAt,
               startedAt: existingTurn.value.startedAt ?? event.payload.createdAt,
               requestedAt: existingTurn.value.requestedAt ?? event.payload.createdAt,
+            } satisfies ProjectionTurn;
+            yield* projectionTurnRepository.upsertByTurnId({
+              ...nextTurn,
+              turnId: event.payload.turnId,
             });
+            yield* amendTurnNotification(nextTurn);
             return;
           }
-          yield* projectionTurnRepository.upsertByTurnId({
+          const nextTurn = {
             turnId: event.payload.turnId,
             threadId: event.payload.threadId,
             pendingMessageId: null,
@@ -1390,7 +1517,12 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
             checkpointRef: null,
             checkpointStatus: null,
             checkpointFiles: [],
+          } satisfies ProjectionTurn;
+          yield* projectionTurnRepository.upsertByTurnId({
+            ...nextTurn,
+            turnId: event.payload.turnId,
           });
+          yield* amendTurnNotification(nextTurn);
           return;
         }
 
@@ -1645,6 +1777,28 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
       }
     });
 
+    const applyTaskInboxProjection: ProjectorDefinition["apply"] = Effect.fn(
+      "applyTaskInboxProjection",
+    )(
+      function* (event) {
+        if (event.type !== "thread.activity-appended") return;
+        const activity = event.payload.activity;
+        if (activity.kind !== "approval.requested" && activity.kind !== "user-input.requested")
+          return;
+        const kind = activity.kind === "approval.requested" ? "approval" : "question";
+        const requestId = extractActivityRequestId(activity.payload);
+        yield* insertTaskNotification({
+          id: `${event.payload.threadId}:${kind}:${requestId ?? activity.id}`,
+          threadId: event.payload.threadId,
+          kind,
+          summary: activity.summary,
+          createdAt: activity.createdAt,
+          readAt: null,
+        });
+      },
+      Effect.mapError(toPersistenceSqlError("taskInbox.project")),
+    );
+
     const projectors: ReadonlyArray<ProjectorDefinition> = [
       {
         name: ORCHESTRATION_PROJECTOR_NAMES.projects,
@@ -1670,6 +1824,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
         name: ORCHESTRATION_PROJECTOR_NAMES.threadTurns,
         apply: applyThreadTurnsProjection,
       },
+      { name: ORCHESTRATION_PROJECTOR_NAMES.taskInbox, apply: applyTaskInboxProjection },
       {
         name: ORCHESTRATION_PROJECTOR_NAMES.checkpoints,
         apply: applyCheckpointsProjection,

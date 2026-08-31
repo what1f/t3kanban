@@ -20,6 +20,8 @@ import {
   DESKTOP_ELECTRON_LANGUAGES,
   DESKTOP_FILE_EXCLUSIONS,
   DESKTOP_EXTRA_RESOURCES,
+  DMG_HIDDEN_FILE_LOCATIONS,
+  DESKTOP_STAGE_PACKAGE_NAME,
   MAC_FILE_EXCLUSIONS,
   InvalidMacPasskeyRpDomainError,
   InvalidMacPasskeyPublishableKeyError,
@@ -159,8 +161,9 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
   });
 
   it("switches desktop packaging product names to nightly for nightly builds", () => {
-    assert.equal(resolveDesktopProductName("0.0.17"), "T3 Code (Alpha)");
-    assert.equal(resolveDesktopProductName("0.0.17-nightly.20260413.42"), "T3 Code (Nightly)");
+    assert.equal(DESKTOP_STAGE_PACKAGE_NAME, "t3kanban");
+    assert.equal(resolveDesktopProductName("0.0.17"), "T3 Kanban (Alpha)");
+    assert.equal(resolveDesktopProductName("0.0.17-nightly.20260413.42"), "T3 Kanban (Nightly)");
   });
 
   it("switches desktop packaging icons to the nightly artwork for nightly versions", () => {
@@ -481,6 +484,9 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         undefined,
       );
 
+      assert.equal(mac.productName, "T3 Kanban (Alpha)");
+      assert.equal(mac.artifactName, "T3-Kanban-${version}-${arch}.${ext}");
+
       // All platforms keep app.asar fully packed; Windows ships the server
       // tree as the hand-packed server.asar sidecar in extraResources instead
       // of unpacking thousands of loose files at install time.
@@ -509,20 +515,28 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         "**/node_modules/.bin/**",
       ]);
       assert.deepStrictEqual(mac.dmg, {
-        title: "T3 Code (Alpha) 1.2.3 Installer",
+        title: "T3 Kanban (Alpha) 1.2.3 Installer",
         background: "dmg/dmg-background-latest.png",
         window: { width: 540, height: 412 },
         contents: [
           { x: 130, y: 220, type: "file" },
           { x: 410, y: 220, type: "link", path: "/Applications" },
+          ...DMG_HIDDEN_FILE_LOCATIONS.map((location) => ({
+            ...location,
+            type: "file",
+            path:
+              location.name === ".background.tiff"
+                ? `apps/desktop/resources/dmg/dmg-background-latest.tiff`
+                : "apps/desktop/resources/icon.icns",
+          })),
         ],
         iconSize: 80,
         iconTextSize: 12,
       });
       // Linux must register the renderer schemes so the generated .desktop
-      // entry advertises MimeType=x-scheme-handler/t3code; for OAuth deep links.
+      // entry advertises MimeType=x-scheme-handler/t3kanban; for OAuth deep links.
       assert.deepStrictEqual((linux.linux as Record<string, unknown>).protocols, [
-        { name: "T3 Code", schemes: ["t3code", "t3code-dev"] },
+        { name: "T3 Kanban", schemes: ["t3kanban", "t3kanban-dev"] },
       ]);
       assert.deepStrictEqual(mac.files, [...DESKTOP_FILE_EXCLUSIONS, ...MAC_FILE_EXCLUSIONS]);
       assert.notProperty(mac.mac as Record<string, unknown>, "sign");
@@ -1041,6 +1055,14 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
               "--out",
               path.join(dmgDir, "dmg-background-nightly@2x.png"),
             ],
+            [
+              "tiffutil",
+              "-cathidpicheck",
+              path.join(dmgDir, "dmg-background-nightly.png"),
+              path.join(dmgDir, "dmg-background-nightly@2x.png"),
+              "-out",
+              path.join(dmgDir, "dmg-background-nightly.tiff"),
+            ],
           ],
         );
       }),
@@ -1074,7 +1096,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     });
 
     assert.deepStrictEqual(configuration, {
-      appId: "com.t3tools.t3code",
+      appId: "com.t3tools.t3kanban",
       teamId: "ABC1234567",
       rpDomains: ["example.clerk.accounts.dev"],
       provisioningProfilePath: "/tmp/t3code.provisionprofile",
@@ -1094,7 +1116,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       "clerk.example.com",
       "example.clerk.accounts.dev",
     ]);
-    assert.include(entitlements, "<string>ABC1234567.com.t3tools.t3code</string>");
+    assert.include(entitlements, "<string>ABC1234567.com.t3tools.t3kanban</string>");
     assert.include(entitlements, "<string>webcredentials:clerk.example.com</string>");
     assert.include(entitlements, "<string>webcredentials:example.clerk.accounts.dev</string>");
     assert.include(entitlements, "<key>com.apple.security.cs.allow-jit</key>");
@@ -1189,12 +1211,12 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       });
 
       const mac = config.mac as Record<string, unknown>;
-      assert.equal(config.appId, "com.t3tools.t3code");
+      assert.equal(config.appId, "com.t3tools.t3kanban");
       assert.equal(mac.entitlements, "/tmp/entitlements.mac.plist");
       assert.equal(mac.provisioningProfile, "/tmp/t3code.provisionprofile");
       assert.match(String(mac.sign), /\/scripts\/sign-macos\.ts$/);
       assert.deepStrictEqual(mac.protocols, [
-        { name: "T3 Code", schemes: ["t3code", "t3code-dev"] },
+        { name: "T3 Kanban", schemes: ["t3kanban", "t3kanban-dev"] },
       ]);
     }).pipe(Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })))),
   );

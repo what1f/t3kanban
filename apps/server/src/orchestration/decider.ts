@@ -369,6 +369,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         })),
         type: "thread.created",
         payload: {
+          ...(command.task !== undefined ? { task: command.task } : {}),
           threadId: command.threadId,
           projectId: command.projectId,
           title: command.title,
@@ -827,6 +828,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         })),
         type: "thread.meta-updated",
         payload: {
+          ...(command.task !== undefined ? { task: command.task } : {}),
           threadId: command.threadId,
           ...(command.title !== undefined ? { title: command.title } : {}),
           ...(command.regenerateTitle === true

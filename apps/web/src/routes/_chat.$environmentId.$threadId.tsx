@@ -15,6 +15,8 @@ import {
 } from "../state/entities";
 import { useEnvironmentQuery } from "../state/query";
 import { environmentShell } from "../state/shell";
+import { taskWorkbench, useTaskWorkbenches } from "../state/taskWorkbench";
+import { useAtomCommand } from "../state/use-atom-command";
 
 function ChatThreadRouteView() {
   const navigate = useNavigate();
@@ -28,6 +30,8 @@ function ChatThreadRouteView() {
   const serverThreadDetail = useThreadDetail(threadRef);
   const serverThreadStatus = useThreadStatus(threadRef);
   const environmentThreadRefs = useEnvironmentThreadRefs(threadRef?.environmentId ?? null);
+  const { snapshots: taskWorkbenchSnapshots } = useTaskWorkbenches();
+  const mutateTaskWorkbench = useAtomCommand(taskWorkbench.mutate);
   const bootstrapComplete = shell.data?.snapshot._tag === "Some";
   const environmentHasServerThreads = environmentThreadRefs.length > 0;
   const draftThreadExists = useComposerDraftStore((store) =>
@@ -73,6 +77,24 @@ function ChatThreadRouteView() {
     }
     finalizePromotedDraftThreadByRef(threadRef);
   }, [draftThread, serverThreadStarted, threadRef]);
+
+  const hasUnreadNotification = threadRef
+    ? taskWorkbenchSnapshots
+        .get(threadRef.environmentId)
+        ?.notifications.some(
+          (notification) => notification.threadId === threadRef.threadId && !notification.readAt,
+        ) === true
+    : false;
+
+  useEffect(() => {
+    if (!threadRef || !hasUnreadNotification) {
+      return;
+    }
+    void mutateTaskWorkbench({
+      environmentId: threadRef.environmentId,
+      input: { type: "notification.read-thread", threadId: threadRef.threadId },
+    });
+  }, [hasUnreadNotification, mutateTaskWorkbench, threadRef]);
 
   if (!threadRef) {
     return null;

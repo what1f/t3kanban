@@ -2,6 +2,7 @@ import type { ContextMenuItem, PreviewSessionSnapshot, PullRequestState } from "
 import { getTerminalLabel } from "@t3tools/shared/terminalLabels";
 import {
   Bot,
+  ClipboardList,
   FileDiff,
   Files,
   GitPullRequest,
@@ -74,12 +75,14 @@ interface RightPanelTabsProps {
   onAddFiles: () => void;
   onAddPullRequest: () => void;
   onAddAgents: () => void;
+  onAddTaskDetails: () => void;
   browserAvailable: boolean;
   terminalAvailable: boolean;
   diffAvailable: boolean;
   filesAvailable: boolean;
   pullRequestAvailable: boolean;
   agentsAvailable: boolean;
+  taskDetailsAvailable: boolean;
   pullRequestStatuses?: Readonly<Record<string, PullRequestTabStatus>>;
   /** Running + waiting subagents; badges the Agents card in the empty state. */
   liveAgentCount: number;
@@ -95,12 +98,13 @@ export interface PullRequestTabStatus {
 }
 
 const SURFACE_DISABLED_REASONS = {
-  browser: "Browser previews are only available in the T3 Code desktop app.",
+  browser: "Browser previews are only available in the T3 Kanban desktop app.",
   terminal: "Terminal surfaces are only available from a project thread.",
   files: "Files are only available when a project is open.",
   diff: "Diff is only available for server threads in Git repositories.",
   pullRequest: "This thread's branch has no pull request yet.",
   agents: "Agents are only available from a thread.",
+  taskDetails: "Task details are only available from a task thread.",
 } as const;
 
 /** Overlays that must win over the launcher's letter shortcuts. */
@@ -123,6 +127,7 @@ const SURFACE_UNAVAILABLE_HINTS = {
   diff: "Available for Git repositories.",
   pullRequest: "No pull request on this branch yet.",
   agents: "Available from a thread.",
+  taskDetails: "Available from a task thread.",
 } as const;
 
 type TabContextMenuAction =
@@ -246,12 +251,14 @@ function SurfaceMenuItem(props: {
  * surfaces stay visible with a one-line reason.
  */
 function RightPanelEmptyState(props: {
+  onAddTaskDetails: () => void;
   onAddBrowser: () => void;
   onAddTerminal: () => void;
   onAddDiff: () => void;
   onAddFiles: () => void;
   onAddPullRequest: () => void;
   onAddAgents: () => void;
+  taskDetailsAvailable: boolean;
   browserAvailable: boolean;
   terminalAvailable: boolean;
   diffAvailable: boolean;
@@ -264,6 +271,16 @@ function RightPanelEmptyState(props: {
   const [highlight, setHighlight] = useState(-1);
 
   const actions = [
+    {
+      label: "Task details",
+      description: "View and edit this task.",
+      icon: ClipboardList,
+      shortcut: "K",
+      available: props.taskDetailsAvailable,
+      disabledReason: SURFACE_UNAVAILABLE_HINTS.taskDetails,
+      onClick: props.onAddTaskDetails,
+      badgeCount: 0,
+    },
     {
       label: "Browser",
       description: "Open a local app or URL.",
@@ -508,6 +525,8 @@ function surfaceTitle(
       return `#${surface.number}`;
     case "agents":
       return "Agents";
+    case "task-details":
+      return "Task details";
     case "preview": {
       const snapshot = surface.resourceId ? sessions[surface.resourceId] : null;
       if (!snapshot || snapshot.navStatus._tag === "Idle") return "Browser";
@@ -593,6 +612,8 @@ function SurfaceIcon({
     }
     case "agents":
       return <Bot className="size-3 shrink-0" />;
+    case "task-details":
+      return <ClipboardList className="size-3 shrink-0" />;
   }
 }
 
@@ -603,6 +624,14 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
   const [addSurfaceMenuOpen, setAddSurfaceMenuOpen] = useState(false);
 
   const addSurfaceActions = [
+    {
+      label: "Task details",
+      icon: ClipboardList,
+      shortcut: "K",
+      available: props.taskDetailsAvailable,
+      disabledReason: SURFACE_DISABLED_REASONS.taskDetails,
+      onClick: props.onAddTaskDetails,
+    },
     {
       label: "Browser",
       icon: Globe2,
@@ -932,12 +961,14 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
       <div className="flex min-h-0 flex-1 flex-col" data-right-panel-surface-content>
         {props.activeSurfaceId === null ? (
           <RightPanelEmptyState
+            onAddTaskDetails={props.onAddTaskDetails}
             onAddBrowser={props.onAddBrowser}
             onAddTerminal={props.onAddTerminal}
             onAddDiff={props.onAddDiff}
             onAddFiles={props.onAddFiles}
             onAddPullRequest={props.onAddPullRequest}
             onAddAgents={props.onAddAgents}
+            taskDetailsAvailable={props.taskDetailsAvailable}
             browserAvailable={props.browserAvailable}
             terminalAvailable={props.terminalAvailable}
             diffAvailable={props.diffAvailable}

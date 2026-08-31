@@ -128,75 +128,79 @@ export function getLatestThreadForProject<
 // thread's own server — neighbors, possibly living on other servers, are
 // never touched, and every client connected to the same servers converges
 // on the same order.
-const PIN_ORDER_DIGITS = "abcdefghijklmnopqrstuvwxyz";
+const ORDER_KEY_DIGITS = "abcdefghijklmnopqrstuvwxyz";
 
-function isValidPinOrderKey(key: string): boolean {
+export function isValidOrderKey(key: string): boolean {
   if (key.length === 0) return false;
   for (const char of key) {
-    if (!PIN_ORDER_DIGITS.includes(char)) return false;
+    if (!ORDER_KEY_DIGITS.includes(char)) return false;
   }
   // A trailing minimum digit would leave no room to sort a key immediately
   // before this one; generators never produce it, so treat it as corrupt.
-  return key.at(-1) !== PIN_ORDER_DIGITS[0];
+  return key.at(-1) !== ORDER_KEY_DIGITS[0];
 }
 
 /** Midpoint of two digit strings interpreted as fractions in (0, 1).
     "" stands for the open bound on either side. Requires a < b. */
-function pinOrderMidpoint(a: string, b: string): string {
-  if (b !== "" && a >= b) throw new Error("pinOrderMidpoint: bounds out of order");
+function orderKeyMidpoint(a: string, b: string): string {
+  if (b !== "" && a >= b) throw new Error("orderKeyMidpoint: bounds out of order");
   if (b !== "") {
     // Recurse past the longest common prefix ("a" pads the shorter side).
     let n = 0;
-    while ((a.charAt(n) || PIN_ORDER_DIGITS[0]) === b.charAt(n)) n += 1;
-    if (n > 0) return b.slice(0, n) + pinOrderMidpoint(a.slice(n), b.slice(n));
+    while ((a.charAt(n) || ORDER_KEY_DIGITS[0]) === b.charAt(n)) n += 1;
+    if (n > 0) return b.slice(0, n) + orderKeyMidpoint(a.slice(n), b.slice(n));
   }
-  const digitA = a === "" ? 0 : PIN_ORDER_DIGITS.indexOf(a.charAt(0));
-  const digitB = b === "" ? PIN_ORDER_DIGITS.length : PIN_ORDER_DIGITS.indexOf(b.charAt(0));
+  const digitA = a === "" ? 0 : ORDER_KEY_DIGITS.indexOf(a.charAt(0));
+  const digitB = b === "" ? ORDER_KEY_DIGITS.length : ORDER_KEY_DIGITS.indexOf(b.charAt(0));
   if (digitB - digitA > 1) {
-    return PIN_ORDER_DIGITS.charAt(Math.round((digitA + digitB) / 2));
+    return ORDER_KEY_DIGITS.charAt(Math.round((digitA + digitB) / 2));
   }
   // Consecutive leading digits: either b has spare digits to shorten into,
   // or we extend a (never producing a trailing minimum digit — the base
   // case midpoint("", "") is the middle of the alphabet).
   if (b.length > 1) return b.charAt(0);
-  return PIN_ORDER_DIGITS.charAt(digitA) + pinOrderMidpoint(a.slice(1), "");
+  return ORDER_KEY_DIGITS.charAt(digitA) + orderKeyMidpoint(a.slice(1), "");
 }
 
 /** Key that sorts strictly between two neighbors; null bounds mean "top of
     the pinned block" / "bottom of the keyed run". Returns null instead of
     throwing when existing keys are corrupt or out of order — callers fall
     back to rewriting the section. */
-export function pinOrderKeyBetween(before: string | null, after: string | null): string | null {
+export function orderKeyBetween(before: string | null, after: string | null): string | null {
   const a = before ?? "";
   const b = after ?? "";
-  if (a !== "" && !isValidPinOrderKey(a)) return null;
-  if (b !== "" && !isValidPinOrderKey(b)) return null;
+  if (a !== "" && !isValidOrderKey(a)) return null;
+  if (b !== "" && !isValidOrderKey(b)) return null;
   if (b !== "" && a >= b) return null;
-  return pinOrderMidpoint(a, b);
+  return orderKeyMidpoint(a, b);
 }
+
+export const pinOrderKeyBetween = orderKeyBetween;
 
 /** Evenly spaced keys for rewriting a whole pinned section (used when a
     drop lands next to keyless threads, so single-key insertion has nothing
     to anchor on). Two base-26 digits give 675 slots — far beyond any real
     pinned section — with monotonicity enforced as a belt-and-braces. */
-export function generateSpreadPinOrderKeys(count: number): string[] {
-  const space = PIN_ORDER_DIGITS.length * PIN_ORDER_DIGITS.length;
+export function generateSpreadOrderKeys(count: number): string[] {
+  const space = ORDER_KEY_DIGITS.length * ORDER_KEY_DIGITS.length;
   const step = space / (count + 1);
   const keys: string[] = [];
   let previous = 0;
   for (let i = 0; i < count; i += 1) {
     let value = Math.max(Math.round(step * (i + 1)), previous + 1);
     // Skip values whose low digit is the minimum (a trailing "a" key).
-    if (value % PIN_ORDER_DIGITS.length === 0) value += 1;
+    if (value % ORDER_KEY_DIGITS.length === 0) value += 1;
     value = Math.min(value, space - 1);
     previous = value;
     keys.push(
-      PIN_ORDER_DIGITS.charAt(Math.floor(value / PIN_ORDER_DIGITS.length)) +
-        PIN_ORDER_DIGITS.charAt(value % PIN_ORDER_DIGITS.length),
+      ORDER_KEY_DIGITS.charAt(Math.floor(value / ORDER_KEY_DIGITS.length)) +
+        ORDER_KEY_DIGITS.charAt(value % ORDER_KEY_DIGITS.length),
     );
   }
   return keys;
 }
+
+export const generateSpreadPinOrderKeys = generateSpreadOrderKeys;
 
 /**
  * Assignments needed to realize a new pinned order. When the moved thread
@@ -205,7 +209,7 @@ export function generateSpreadPinOrderKeys(count: number): string[] {
  * reordering shipped), the whole section gets fresh spread keys — a
  * one-time materialization; every move after that is single-write.
  */
-export function planPinnedReorder(input: {
+export function planOrderKeyReorder(input: {
   /** Thread ids in the desired visual order (after the move). */
   readonly orderedIds: readonly string[];
   readonly keysById: ReadonlyMap<string, string | null | undefined>;
@@ -221,16 +225,18 @@ export function planPinnedReorder(input: {
   const beforeUsable = beforeId === null || beforeKey != null;
   const afterUsable = afterId === null || afterKey != null;
   if (beforeUsable && afterUsable) {
-    const key = pinOrderKeyBetween(beforeKey, afterKey);
+    const key = orderKeyBetween(beforeKey, afterKey);
     if (key !== null) return [{ id: movedId, orderKey: key }];
   }
   // Keyless neighbor (or corrupt keys): rewrite the section in the new order.
-  const keys = generateSpreadPinOrderKeys(orderedIds.length);
+  const keys = generateSpreadOrderKeys(orderedIds.length);
   return orderedIds.flatMap((id, index) => {
     const key = keys[index]!;
     return keysById.get(id) === key ? [] : [{ id, orderKey: key }];
   });
 }
+
+export const planPinnedReorder = planOrderKeyReorder;
 
 /**
  * Pinned block order: user-arranged keys first (string comparison, id

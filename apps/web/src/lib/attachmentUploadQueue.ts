@@ -357,6 +357,19 @@ export function retryAttachmentUpload(input: {
   startAttachmentUpload(input);
 }
 
+/** Start a new upload unless the previous attempt needs to be explicitly reset. */
+export function startOrRetryAttachmentUpload(input: {
+  readonly environmentId: EnvironmentId;
+  readonly image: ComposerImageAttachment;
+}): void {
+  const existing = readAttachmentUpload(input.image.id);
+  if (existing?.status === "failed" && existing.environmentId === input.environmentId) {
+    retryAttachmentUpload(input);
+    return;
+  }
+  startAttachmentUpload(input);
+}
+
 export async function awaitAttachmentUploads(imageIds: ReadonlyArray<string>): Promise<void> {
   await Promise.all(imageIds.map((imageId) => jobsByImageId.get(imageId)?.settled));
 }

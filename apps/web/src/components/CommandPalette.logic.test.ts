@@ -86,6 +86,16 @@ describe("reduceCommandPaletteUiState", () => {
       mode: "command",
       openIntent: { kind: "add-project" },
     });
+    expect(
+      reduceCommandPaletteUiState(filesOpen, {
+        _tag: "OpenAddProject",
+        afterProjectAdd: "task-board",
+      }),
+    ).toEqual({
+      open: true,
+      mode: "command",
+      openIntent: { kind: "add-project", afterProjectAdd: "task-board" },
+    });
     expect(reduceCommandPaletteUiState(filesOpen, { _tag: "OpenNewThreadIn" })).toEqual({
       open: true,
       mode: "command",

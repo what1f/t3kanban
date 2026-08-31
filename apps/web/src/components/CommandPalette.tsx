@@ -1,6 +1,10 @@
 "use client";
 
-import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
+import {
+  scopedProjectKey,
+  scopeProjectRef,
+  scopeThreadRef,
+} from "@t3tools/client-runtime/environment";
 import {
   canCreateProjectInEnvironment,
   getCloneDestinationBrowsePath,
@@ -401,7 +405,14 @@ export function CommandPalette({ children }: { children: ReactNode }) {
     (mode: SearchOverlayMode) => dispatch({ _tag: "ToggleMode", mode }),
     [],
   );
-  const openAddProject = useCallback(() => dispatch({ _tag: "OpenAddProject" }), []);
+  const openAddProject = useCallback(
+    (afterProjectAdd?: "task-board") =>
+      dispatch({
+        _tag: "OpenAddProject",
+        ...(afterProjectAdd ? { afterProjectAdd } : {}),
+      }),
+    [],
+  );
   const openNewThreadIn = useCallback(() => dispatch({ _tag: "OpenNewThreadIn" }), []);
   const clearOpenIntent = useCallback(() => dispatch({ _tag: "ClearOpenIntent" }), []);
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
@@ -476,7 +487,7 @@ export function CommandPalette({ children }: { children: ReactNode }) {
         if (detail.open === "new-thread-in") {
           openNewThreadIn();
         } else if (detail.open === "add-project") {
-          openAddProject();
+          openAddProject(detail.afterProjectAdd);
         } else {
           setOpen(true);
         }
@@ -564,6 +575,7 @@ function OpenCommandPaletteDialog(props: {
 }) {
   const navigate = useNavigate();
   const { clearOpenIntent, openIntent, openOverlayMode, setOpen } = props;
+  const afterProjectAddRef = useRef<"task-board" | null>(null);
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const isActionsOnly = deferredQuery.startsWith(">");
@@ -1441,6 +1453,7 @@ function OpenCommandPaletteDialog(props: {
     if (openIntent?.kind !== "add-project") {
       return;
     }
+    afterProjectAddRef.current = openIntent.afterProjectAdd ?? null;
     clearOpenIntent();
     openAddProjectFlow();
   }, [clearOpenIntent, openAddProjectFlow, openIntent]);
@@ -1723,6 +1736,17 @@ function OpenCommandPaletteDialog(props: {
         cwd,
       );
       if (existing) {
+        if (afterProjectAddRef.current === "task-board") {
+          afterProjectAddRef.current = null;
+          await navigate({
+            to: "/",
+            search: {
+              project: scopedProjectKey(scopeProjectRef(existing.environmentId, existing.id)),
+            },
+          });
+          setOpen(false);
+          return;
+        }
         const latestThread = getLatestThreadForProject(
           threads.filter((thread) => thread.environmentId === existing.environmentId),
           existing.id,
@@ -1784,6 +1808,18 @@ function OpenCommandPaletteDialog(props: {
             }),
           );
         }
+        return;
+      }
+
+      if (afterProjectAddRef.current === "task-board") {
+        afterProjectAddRef.current = null;
+        await navigate({
+          to: "/",
+          search: {
+            project: scopedProjectKey(scopeProjectRef(input.environmentId, projectId)),
+          },
+        });
+        setOpen(false);
         return;
       }
 

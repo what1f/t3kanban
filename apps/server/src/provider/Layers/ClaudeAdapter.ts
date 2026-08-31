@@ -78,6 +78,7 @@ import * as Stream from "effect/Stream";
 
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
+import { AGENT_SYSTEM_PROMPT } from "../AgentSystemPrompt.ts";
 import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import { resolveClaudeSdkExecutablePath } from "../Drivers/ClaudeExecutable.ts";
 import { makeClaudeEnvironment } from "../Drivers/ClaudeHome.ts";
@@ -4259,6 +4260,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
 
       const claudeBinaryPath = claudeSdkExecutablePath;
       const extraArgs = parseCliArgs(claudeSettings.launchArgs).flags;
+      const agentSystemPrompt = AGENT_SYSTEM_PROMPT.trim();
       const modelSelection =
         input.modelSelection?.instanceId === boundInstanceId ? input.modelSelection : undefined;
       const caps = getClaudeModelCapabilities(modelSelection?.model);
@@ -4308,7 +4310,11 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         ...(input.cwd ? { cwd: input.cwd } : {}),
         ...(apiModelId ? { model: apiModelId } : {}),
         pathToClaudeCodeExecutable: claudeBinaryPath,
-        systemPrompt: { type: "preset", preset: "claude_code" },
+        systemPrompt: {
+          type: "preset",
+          preset: "claude_code",
+          ...(agentSystemPrompt ? { append: agentSystemPrompt } : {}),
+        },
         settingSources: [...CLAUDE_SETTING_SOURCES],
         // `ultracode` is a Claude Code setting, not an API effort level. It is
         // normalized to `xhigh` above and paired with `settings.ultracode`.
@@ -4337,6 +4343,10 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
                 "t3-code": {
                   type: "http",
                   url: mcpSession.endpoint,
+                  // Task context is part of the turn contract, so these tools
+                  // must be present before Claude builds the first prompt.
+                  // Newer Claude Code versions defer MCP tools by default.
+                  alwaysLoad: true,
                   headers: {
                     Authorization: mcpSession.authorizationHeader,
                   },

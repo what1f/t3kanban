@@ -285,7 +285,7 @@ const browserOtlpTracingLayer = Layer.mergeAll(
 
 const makeAuthTestLayer = () =>
   EnvironmentAuth.layer.pipe(
-    Layer.provide(SqlitePersistenceMemory),
+    Layer.provideMerge(SqlitePersistenceMemory),
     Layer.provide(ServerSecretStore.layer),
   );
 
@@ -7938,6 +7938,12 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
               createThread: {
                 projectId: defaultProjectId,
                 title: "Bootstrap Thread",
+                task: {
+                  content: "hello",
+                  attachments: [],
+                  statusId: "todo",
+                  orderKey: createdAt,
+                },
                 modelSelection: defaultModelSelection,
                 runtimeMode: "full-access",
                 interactionMode: "default",
@@ -7962,6 +7968,16 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
         dispatchedCommands.map((command) => command.type),
         ["thread.create", "thread.meta.update", "thread.activity.append", "thread.turn.start"],
       );
+      const createCommand = dispatchedCommands.find(
+        (command): command is Extract<OrchestrationCommand, { type: "thread.create" }> =>
+          command.type === "thread.create",
+      );
+      assert.deepEqual(createCommand?.task, {
+        content: "hello",
+        attachments: [],
+        statusId: "todo",
+        orderKey: createdAt,
+      });
       const setupFailureActivity = dispatchedCommands.find(
         (command): command is Extract<OrchestrationCommand, { type: "thread.activity.append" }> =>
           command.type === "thread.activity.append",

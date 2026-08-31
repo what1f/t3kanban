@@ -16,6 +16,7 @@ import {
   RuntimeMode,
   ThreadLinkedPullRequest,
   ThreadId,
+  ThreadTaskDetails,
   TurnId,
 } from "@t3tools/contracts";
 import * as Option from "effect/Option";
@@ -27,6 +28,7 @@ import type { ProjectionRepositoryError } from "../Errors.ts";
 
 export const ProjectionThread = Schema.Struct({
   threadId: ThreadId,
+  task: Schema.optional(Schema.NullOr(ThreadTaskDetails)),
   projectId: ProjectId,
   title: Schema.String,
   modelSelection: ModelSelection,

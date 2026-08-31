@@ -51,7 +51,8 @@ import { Command, Flag } from "effect/unstable/cli";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 const LINUX_ICON_SIZES = [16, 22, 24, 32, 48, 64, 128, 256, 512] as const;
-const DESKTOP_APP_ID = "com.t3tools.t3code";
+const DESKTOP_APP_ID = "com.t3tools.t3kanban";
+export const DESKTOP_STAGE_PACKAGE_NAME = "t3kanban";
 const APPLE_TEAM_ID_PATTERN = /^[A-Z0-9]{10}$/u;
 
 const BuildPlatform = Schema.Literals(["mac", "linux", "win"]);
@@ -786,7 +787,7 @@ interface StagePackageJson {
 export const STAGE_INSTALL_ARGS = ["install", "--prod"] as const;
 export const DESKTOP_ELECTRON_LANGUAGES = ["en-US"] as const;
 export const DESKTOP_FILE_EXCLUSIONS = [
-  // T3 Code always passes the user's installed Claude executable to the SDK,
+  // T3 Kanban always passes the user's installed Claude executable to the SDK,
   // so the SDK's optional platform packages (each a ~200MB bundled executable)
   // are dead weight. The trailing dash keeps the SDK's own JS package.
   "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**/*",
@@ -800,6 +801,14 @@ export const DESKTOP_FILE_EXCLUSIONS = [
 export const MAC_FILE_EXCLUSIONS = [
   "!**/node_modules/node-pty/prebuilds/win32-*/**/*",
   "!**/node_modules/node-pty/third_party/conpty/**/*",
+] as const;
+// dmgbuild creates these dotfiles to implement the custom background, volume
+// icon, and Finder metadata. Give them explicit off-canvas locations so
+// Finder's "show hidden files" setting cannot cover the installer artwork.
+export const DMG_HIDDEN_FILE_LOCATIONS = [
+  { x: 1000, y: 1000, name: ".background.tiff" },
+  { x: 1100, y: 1000, name: ".VolumeIcon.icns" },
+  { x: 1200, y: 1000, name: ".DS_Store" },
 ] as const;
 // Windows ships the server tree (bundle + node_modules) as a separate
 // resources/server.asar sidecar instead of loose files: the NSIS installer
@@ -1854,6 +1863,22 @@ export const stageDesktopDmgBackground = Effect.fn("stageDesktopDmgBackground")(
       },
     );
   }
+
+  yield* runCommand(
+    ChildProcess.make({})`tiffutil -cathidpicheck ${path.join(
+      stageResourcesDir,
+      "dmg",
+      `dmg-background-${channel}.png`,
+    )} ${path.join(stageResourcesDir, "dmg", `dmg-background-${channel}@2x.png`)} -out ${path.join(
+      stageResourcesDir,
+      "dmg",
+      `dmg-background-${channel}.tiff`,
+    )}`,
+    {
+      label: `tiffutil ${channel} DMG background`,
+      verbose,
+    },
+  );
 });
 
 function stageLinuxIcons(stageResourcesDir: string, sourcePng: string, verbose: boolean) {
@@ -2060,8 +2085,8 @@ export function resolvePackageManagerUserAgent(packageManager: string): string {
 
 export function resolveDesktopProductName(version: string): string {
   return resolveDesktopUpdateChannel(version) === "nightly"
-    ? "T3 Code (Nightly)"
-    : (desktopPackageJson.productName ?? "T3 Code");
+    ? "T3 Kanban (Nightly)"
+    : (desktopPackageJson.productName ?? "T3 Kanban");
 }
 
 export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
@@ -2077,11 +2102,13 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
         readonly provisioningProfilePath: string;
       }
     | undefined,
+  dmgResourceSourceDir: string | undefined = undefined,
 ) {
+  const path = yield* Path.Path;
   const buildConfig: Record<string, unknown> = {
     appId: DESKTOP_APP_ID,
     productName: resolveDesktopProductName(version),
-    artifactName: "T3-Code-${version}-${arch}.${ext}",
+    artifactName: "T3-Kanban-${version}-${arch}.${ext}",
     electronLanguages: [...DESKTOP_ELECTRON_LANGUAGES],
     files: [...DESKTOP_FILE_EXCLUSIONS, ...(platform === "mac" ? MAC_FILE_EXCLUSIONS : [])],
     directories: {
@@ -2112,7 +2139,6 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
   }
 
   if (platform === "mac") {
-    const path = yield* Path.Path;
     const repoRoot = yield* RepoRoot;
     buildConfig.mac = {
       target: target === "dmg" ? [target, "zip"] : [target],
@@ -2120,8 +2146,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       category: "public.app-category.developer-tools",
       protocols: [
         {
-          name: "T3 Code",
-          schemes: ["t3code", "t3code-dev"],
+          name: "T3 Kanban",
+          schemes: ["t3kanban", "t3kanban-dev"],
         },
       ],
       ...(signed ? { sign: path.join(repoRoot, "scripts/sign-macos.ts") } : {}),
@@ -2151,6 +2177,18 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       contents: [
         { x: 130, y: 220, type: "file" },
         { x: 410, y: 220, type: "link", path: "/Applications" },
+        ...DMG_HIDDEN_FILE_LOCATIONS.map((location) => ({
+          ...location,
+          type: "file",
+          path:
+            location.name === ".background.tiff"
+              ? path.join(
+                  dmgResourceSourceDir ?? "apps/desktop/resources",
+                  "dmg",
+                  `dmg-background-${updateChannel}.tiff`,
+                )
+              : path.join(dmgResourceSourceDir ?? "apps/desktop/resources", "icon.icns"),
+        })),
       ],
       iconSize: 80,
       iconTextSize: 12,
@@ -2160,21 +2198,21 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
   if (platform === "linux") {
     buildConfig.linux = {
       target: [target],
-      executableName: "t3code",
+      executableName: "t3kanban",
       icon: "icons",
       category: "Development",
       // electron-builder turns these into MimeType=x-scheme-handler/<scheme>;
       // in the .desktop entry (Exec already gets %U), so browsers can hand
-      // t3code:// OAuth callbacks to the app.
+      // t3kanban:// OAuth callbacks to the app.
       protocols: [
         {
-          name: "T3 Code",
-          schemes: ["t3code", "t3code-dev"],
+          name: "T3 Kanban",
+          schemes: ["t3kanban", "t3kanban-dev"],
         },
       ],
       desktop: {
         entry: {
-          StartupWMClass: "t3code",
+          StartupWMClass: "t3kanban",
         },
       },
     };
@@ -2895,6 +2933,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   // electron-builder is filtering out stageResourcesDir directory in the AppImage for production
   const stageProdResourcesDir = path.join(stageAppDir, "apps/desktop/prod-resources");
   yield* fs.copy(stageResourcesDir, stageProdResourcesDir);
+  const realStageResourcesDir = yield* fs.realPath(stageResourcesDir);
 
   const configuredMacPasskeySigning =
     options.platform === "mac" && options.signed
@@ -2957,13 +2996,13 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
       ? path.join(stageAppDir, WINDOWS_SERVER_RESOURCE_SOURCE_DIR, WINDOWS_SERVER_ASAR_RESOURCE)
       : undefined;
   const stagePackageJson: StagePackageJson = {
-    name: "t3code",
+    name: DESKTOP_STAGE_PACKAGE_NAME,
     version: appVersion,
     buildVersion: appVersion,
     t3codeCommitHash: commitHash,
     private: true,
     packageManager: rootPackageJson.packageManager,
-    description: "T3 Code desktop build",
+    description: "T3 Kanban desktop build",
     author: "T3 Tools",
     main: "apps/desktop/dist-electron/main.cjs",
     build: yield* createBuildConfig(
@@ -2979,6 +3018,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
             provisioningProfilePath: macPasskeySigning.provisioningProfilePath,
           }
         : undefined,
+      options.platform === "mac" && options.target === "dmg" ? realStageResourcesDir : undefined,
     ),
     dependencies: stageDependencies,
     devDependencies: {
@@ -3221,7 +3261,7 @@ const buildDesktopArtifactCli = Command.make("build-desktop-artifact", {
     Flag.optional,
   ),
 }).pipe(
-  Command.withDescription("Build a desktop artifact for T3 Code."),
+  Command.withDescription("Build a desktop artifact for T3 Kanban."),
   Command.withHandler((input) => Effect.flatMap(resolveBuildOptions(input), buildDesktopArtifact)),
 );
 

@@ -39,6 +39,7 @@ export type SearchOverlayMode = "command" | "files" | "content";
 
 export interface CommandPaletteOpenIntent {
   readonly kind: "add-project" | "new-thread-in";
+  readonly afterProjectAdd?: "task-board";
 }
 
 export interface CommandPaletteUiState {
@@ -50,7 +51,7 @@ export interface CommandPaletteUiState {
 export type CommandPaletteUiAction =
   | { readonly _tag: "SetOpen"; readonly open: boolean }
   | { readonly _tag: "ToggleMode"; readonly mode: SearchOverlayMode }
-  | { readonly _tag: "OpenAddProject" }
+  | { readonly _tag: "OpenAddProject"; readonly afterProjectAdd?: "task-board" }
   | { readonly _tag: "OpenNewThreadIn" }
   | { readonly _tag: "ClearOpenIntent" };
 
@@ -68,7 +69,14 @@ export function reduceCommandPaletteUiState(
         ? { ...state, open: false, openIntent: null }
         : { open: true, mode: action.mode, openIntent: null };
     case "OpenAddProject":
-      return { open: true, mode: "command", openIntent: { kind: "add-project" } };
+      return {
+        open: true,
+        mode: "command",
+        openIntent: {
+          kind: "add-project",
+          ...(action.afterProjectAdd ? { afterProjectAdd: action.afterProjectAdd } : {}),
+        },
+      };
     case "OpenNewThreadIn":
       return { open: true, mode: "command", openIntent: { kind: "new-thread-in" } };
     case "ClearOpenIntent":

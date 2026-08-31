@@ -1,120 +1,108 @@
-# T3 Code
+<p align="right">
+  <strong>English</strong> · <a href="./README.zh-CN.md">简体中文</a>
+</p>
 
-T3 Code is an "agent harness control surface". It enables control of the agents on your machine with a best-in-class mobile app ([iOS](https://apps.apple.com/us/app/t3-code-remote-claude-more/id6787819824), [Android](https://play.google.com/store/apps/details?id=com.t3tools.t3code)), [web app](https://app.t3.codes) and [Electron-based desktop app](https://t3.codes).
+<p align="center">
+  <img src="./assets/prod/t3-black-web-apple-touch-180.png" width="96" alt="T3 Kanban logo">
+</p>
 
-Works with your subscriptions on Claude Code, Codex, Cursor, Grok Build, and OpenCode. If they're set up on your computer, T3 Code can control them.
+<h1 align="center">T3 Kanban</h1>
 
-## "Wait, what are you selling me?"
+<p align="center">
+  <strong>Task-first workspace for parallel coding agents.</strong>
+</p>
 
-Nothing. We built T3 Code because we wanted the best possible development experience with agents. We were inspired by existing solutions like the Codex desktop app, Conductor, Claude Desktop and Cursor Glass, but none met our bar.
+<p align="center">
+  Turn every agent thread into a task with its own goal, status, and review trail.<br>
+  Dispatch clear work and come back when the Inbox needs you—or open the same task for the full conversation, reasoning, tools, and diffs.
+</p>
 
-We wanted something performant, remote-ready, and truly open. If we ever go the wrong direction, we want you to have everything you need to fork and build the editor that you want.
+<p align="center">
+  Web · macOS · Local-first · MIT
+</p>
 
-## Installation
+![T3 Kanban task board showing work across Todo, In Progress, In Review, Blocked, and Done](./assets/readme/task-board.png)
 
-> [!WARNING]
-> T3 Code currently supports Codex, Claude, Cursor, Grok Build and OpenCode. Install and authenticate at least one provider before use:
->
-> - Codex: install [Codex CLI](https://developers.openai.com/codex/cli) and run `codex login`
-> - Claude: install [Claude Code](https://claude.com/product/claude-code) and run `claude auth login`
-> - Cursor: install [Cursor CLI](https://cursor.com/cli) and run `agent login`
-> - Grok Build: install [Grok Build CLI](https://x.ai/cli) and run `grok login`
-> - OpenCode: install [OpenCode](https://opencode.ai) and run `opencode auth login`
+## Quick start
 
-### Try it out (install-free)
-
-The easiest way to test T3 Code is to run the server in your terminal (requires Node.js 22.16+, 23.11+, or 24.10+):
-
-```bash
-npx t3@latest
-```
-
-This will launch T3 Code's backend on your machine as well as the local web app to control your agents.
-
-Tip: Use `npx t3@latest --help` for the full CLI reference.
-
-### Desktop app
-
-Install the latest version of the desktop app from [GitHub Releases](https://github.com/pingdotgg/t3code/releases), or from your favorite package registry:
-
-#### Windows (`winget`)
+**Prerequisites:** Node.js `^24.13.1`, pnpm `11.10.0`, and at least one authenticated coding-agent CLI.
 
 ```bash
-winget install T3Tools.T3Code
+pnpm install --frozen-lockfile
+pnpm dev
 ```
 
-#### macOS (Homebrew)
+Open the complete pairing URL printed by the server. It contains the token required to enter the Web workspace.
+
+For the macOS desktop development app:
 
 ```bash
-brew install --cask t3-code
+pnpm dev:desktop
 ```
 
-#### Arch Linux (AUR)
+Development data stays in this repository's ignored `.t3/` directory and does not touch an existing T3 Code installation.
 
-Stable:
+## See every task, not every chat
+
+T3 Kanban treats a thread and a task as the same durable unit of work. The goal, business status, agent run, follow-up discussion, and review history stay together.
+
+### One board across all projects
+
+See every project at once or focus on one project. Switch between Board and List views, then drag tasks across `Todo`, `In Progress`, `In Review`, `Blocked`, and `Done`.
+
+### Create once, then let it run
+
+Describe the task in Markdown, paste or upload images, choose the project, status, agent, and model, then start the run in one step. Leaving the page does not stop submitted work.
+
+![Create-task dialog with status, agent, model, and attachment controls](./assets/readme/create-task.png)
+
+### Keep deep collaboration one click away
+
+Clear task? Dispatch it and move on. Complex task? Open the same task and use the full agent conversation, reasoning, tool calls, approvals, and code diffs while the task goal remains visible beside it.
+
+There is no handoff between a project manager and a chat client—and no context to copy between them.
+
+![T3 Kanban task workbench with the native agent conversation and task details side by side](./assets/readme/task-workbench.png)
+
+### Review work from an email-style Inbox
+
+The Inbox surfaces the latest result when an agent completes, fails, stops, asks a question, or needs approval. Read state and deletion persist, and one task does not flood the Inbox with repeated messages.
+
+![Inbox showing the latest agent result for a task](./assets/readme/inbox.png)
+
+### Let the agent maintain the task
+
+The active agent can read its current task and update the title, Markdown description, or status as work evolves. If you edit the task outside the conversation, the agent can reload the latest goal instead of working from stale instructions.
+
+## How the workflow fits together
+
+```text
+Create a task → Agent runs → Inbox asks for attention → Review in the same thread → Update status
+```
+
+Use T3 Kanban in two modes without changing tools:
+
+- **Dispatch mode** — send well-scoped work, leave it running, and review only when notified.
+- **Collaboration mode** — stay in the native conversation, inspect progress, interrupt, clarify, and continue.
+
+## Opening an unsigned macOS build
+
+Current macOS release builds are not signed with an Apple Developer ID or notarized. After dragging the app into `/Applications`, Gatekeeper may block the first launch. Remove the quarantine attribute from this app only:
 
 ```bash
-yay -S t3code-bin
+xattr -dr com.apple.quarantine "/Applications/T3 Kanban (Alpha).app"
 ```
 
-Nightly:
+Then open the app again. This bypasses macOS source verification for that app, so run it only on a build downloaded from this project's Releases page.
 
-```bash
-yay -S t3code-nightly-bin
-```
+## Project status
 
-The AUR packaging is maintained in this repository under [`packaging/aur`](./packaging/aur).
+T3 Kanban is alpha software focused on local Web and macOS desktop use. The task workflow and data migrations are still evolving; check release notes before upgrading.
 
-## Some notes
+## Built on T3 Code
 
-We are very very early in this project. Expect bugs.
+T3 Kanban is built on [T3 Code](https://github.com/pingdotgg/t3code) and reuses its agent harnesses, conversations, approvals, diffs, workspaces, and remote connectivity. See the upstream project for those foundation capabilities; this repository focuses on the task-first workflow added on top.
 
-We are (mostly) not accepting contributions yet. Small fixes may be considered. Big features will not be.
+## License
 
-## Documentation
-
-Full docs live in [docs/](./docs). There's no docs site yet.
-
-- [Install and first run](./docs/user/install.md)
-- [Permission modes](./docs/user/permission-modes.md)
-- [Keyboard shortcuts](./docs/user/keybindings.md)
-- [Customize a project icon](./docs/user/project-settings.md)
-- [Remote access from a phone or another machine](./docs/user/remote-access.md)
-- [Keeping app and server in sync](./docs/user/updating.md)
-- [Source control integrations](./docs/user/source-control.md)
-- Multiple accounts: [Codex](./docs/user/providers-codex.md) · [Claude](./docs/user/providers-claude.md)
-- Linux: [run T3 Code as a background service](./docs/user/background-service.md)
-
-Building from source? Start at [docs/internals/overview.md](./docs/internals/overview.md).
-
-## If you REALLY want to contribute still.... read this first
-
-### Install `vp`
-
-T3 Code uses Vite+ so you'll need to install the global `vp` command-line tool.
-
-#### macOS / Linux
-
-```bash
-curl -fsSL https://vite.plus | bash
-```
-
-#### Windows
-
-```bash
-irm https://vite.plus/ps1 | iex
-```
-
-Checkout their getting started guide for more information: https://viteplus.dev/guide/
-
-### Install dependencies
-
-```bash
-vp i
-```
-
-Read [CONTRIBUTING.md](./CONTRIBUTING.md) before reporting a bug or opening a PR.
-
-Have a feature request? Start an [Ideas discussion](https://github.com/pingdotgg/t3code/discussions/categories/ideas).
-
-Need support? Join the [Discord](https://discord.gg/jn4EGJjrvv).
+[MIT](./LICENSE). The original T3 Code copyright and license notices are retained.

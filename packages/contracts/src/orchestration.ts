@@ -204,6 +204,18 @@ export type UploadChatImageAttachment = typeof UploadChatImageAttachment.Type;
 
 export const ChatAttachment = Schema.Union([ChatImageAttachment]);
 export type ChatAttachment = typeof ChatAttachment.Type;
+
+/** Business properties of the same durable Thread; execution state stays native. */
+export const ThreadTaskDetails = Schema.Struct({
+  content: Schema.String,
+  attachments: Schema.Array(ChatImageAttachment),
+  statusId: TrimmedNonEmptyString,
+  orderKey: Schema.String,
+  assigned: Schema.optional(Schema.Boolean),
+  workspaceMode: Schema.optional(ThreadEnvMode),
+});
+export type ThreadTaskDetails = typeof ThreadTaskDetails.Type;
+
 const UploadChatAttachment = Schema.Union([UploadChatImageAttachment]);
 export type UploadChatAttachment = typeof UploadChatAttachment.Type;
 
@@ -397,6 +409,7 @@ export type ThreadLinkedPullRequest = typeof ThreadLinkedPullRequest.Type;
 
 export const OrchestrationThread = Schema.Struct({
   id: ThreadId,
+  task: Schema.optional(Schema.NullOr(ThreadTaskDetails)),
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
   modelSelection: ModelSelection,
@@ -473,6 +486,7 @@ export type OrchestrationProjectShell = typeof OrchestrationProjectShell.Type;
 
 export const OrchestrationThreadShell = Schema.Struct({
   id: ThreadId,
+  task: Schema.optional(Schema.NullOr(ThreadTaskDetails)),
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
   modelSelection: ModelSelection,
@@ -695,6 +709,33 @@ const ProjectDeleteCommand = Schema.Struct({
 
 const ThreadCreateCommand = Schema.Struct({
   type: Schema.Literal("thread.create"),
+  task: Schema.optional(ThreadTaskDetails),
+  commandId: CommandId,
+  threadId: ThreadId,
+  projectId: ProjectId,
+  title: TrimmedNonEmptyString,
+  modelSelection: ModelSelection,
+  runtimeMode: RuntimeMode,
+  interactionMode: ProviderInteractionMode.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_PROVIDER_INTERACTION_MODE)),
+  ),
+  branch: Schema.NullOr(TrimmedNonEmptyString),
+  worktreePath: Schema.NullOr(TrimmedNonEmptyString),
+  createdAt: IsoDateTime,
+});
+
+const ClientThreadTaskDetails = Schema.Struct({
+  content: Schema.String,
+  attachments: Schema.Array(Schema.Union([UploadChatAttachment, ChatAttachment])),
+  statusId: TrimmedNonEmptyString,
+  orderKey: Schema.String,
+  assigned: Schema.optional(Schema.Boolean),
+  workspaceMode: Schema.optional(ThreadEnvMode),
+});
+
+const ClientThreadCreateCommand = Schema.Struct({
+  type: Schema.Literal("thread.create"),
+  task: Schema.optional(ClientThreadTaskDetails),
   commandId: CommandId,
   threadId: ThreadId,
   projectId: ProjectId,
@@ -793,6 +834,7 @@ const ThreadPinReorderCommand = Schema.Struct({
 
 const ThreadMetaUpdateCommand = Schema.Struct({
   type: Schema.Literal("thread.meta.update"),
+  task: Schema.optional(ThreadTaskDetails),
   commandId: CommandId,
   threadId: ThreadId,
   title: Schema.optional(TrimmedNonEmptyString),
@@ -829,6 +871,7 @@ const ThreadInteractionModeSetCommand = Schema.Struct({
 const ThreadTurnStartBootstrapCreateThread = Schema.Struct({
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
+  task: Schema.optional(ThreadTaskDetails),
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
@@ -971,7 +1014,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
   ProjectMetaUpdateCommand,
   ProjectDeleteCommand,
-  ThreadCreateCommand,
+  ClientThreadCreateCommand,
   ThreadDeleteCommand,
   ThreadArchiveCommand,
   ThreadUnarchiveCommand,
@@ -1154,6 +1197,7 @@ export const ProjectDeletedPayload = Schema.Struct({
 
 export const ThreadCreatedPayload = Schema.Struct({
   threadId: ThreadId,
+  task: Schema.optional(ThreadTaskDetails),
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
   modelSelection: ModelSelection,
@@ -1234,6 +1278,7 @@ export const ThreadPinReorderedPayload = Schema.Struct({
 
 export const ThreadMetaUpdatedPayload = Schema.Struct({
   threadId: ThreadId,
+  task: Schema.optional(ThreadTaskDetails),
   title: Schema.optional(TrimmedNonEmptyString),
   /** Intent marker consumed by the title-generation reactor. Keeping this on
       the existing event lets older clients safely ignore the new field. */

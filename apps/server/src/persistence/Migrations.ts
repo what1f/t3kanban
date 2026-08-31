@@ -56,6 +56,11 @@ import Migration0040 from "./Migrations/040_ProjectionProjectFaviconPath.ts";
 import Migration0041 from "./Migrations/041_AuthSessionClientConnection.ts";
 import Migration0042 from "./Migrations/042_ProjectionThreadLinkedPullRequest.ts";
 import Migration0043 from "./Migrations/043_ProjectionThreadsUnsettledAt.ts";
+import Migration0044 from "./Migrations/044_TaskWorkbench.ts";
+import Migration0045 from "./Migrations/045_TaskContextState.ts";
+import Migration0046 from "./Migrations/046_TaskContextAfterCreation.ts";
+import Migration0047 from "./Migrations/047_OneUnreadTaskNotification.ts";
+import Migration0048 from "./Migrations/048_OneVisibleTaskNotification.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -111,6 +116,11 @@ export const migrationEntries = [
   [41, "AuthSessionClientConnection", Migration0041],
   [42, "ProjectionThreadLinkedPullRequest", Migration0042],
   [43, "ProjectionThreadsUnsettledAt", Migration0043],
+  [44, "TaskWorkbench", Migration0044],
+  [45, "TaskContextState", Migration0045],
+  [46, "TaskContextAfterCreation", Migration0046],
+  [47, "OneUnreadTaskNotification", Migration0047],
+  [48, "OneVisibleTaskNotification", Migration0048],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);

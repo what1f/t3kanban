@@ -2620,6 +2620,186 @@ it.layer(makeProjectionPipelinePrefixedTestLayer("t3-pending-turn-terminal-test-
             AND state = 'pending'
         `;
         assert.deepEqual(pendingRows, []);
+
+        const notificationRows = yield* sql<{
+          readonly id: string;
+          readonly kind: string;
+          readonly summary: string;
+        }>`
+          SELECT id, kind, summary
+          FROM task_inbox
+          ORDER BY id ASC
+        `;
+        assert.deepEqual(notificationRows, [
+          {
+            id: "thread-terminal-error:turn:message-terminal-error",
+            kind: "failed",
+            summary: "startup failed",
+          },
+          {
+            id: "thread-terminal-interrupted:turn:message-terminal-interrupted",
+            kind: "interrupted",
+            summary: "本轮执行已中断",
+          },
+          {
+            id: "thread-terminal-stopped:turn:message-terminal-stopped",
+            kind: "interrupted",
+            summary: "本轮执行已中断",
+          },
+        ]);
+      }),
+    );
+
+    it.effect("creates one replay-safe notification from canonical turn state", () =>
+      Effect.gen(function* () {
+        const projectionPipeline = yield* OrchestrationProjectionPipeline;
+        const eventStore = yield* OrchestrationEventStore;
+        const sql = yield* SqlClient.SqlClient;
+        const threadId = ThreadId.make("thread-inbox-turn");
+        const turnId = TurnId.make("turn-inbox-1");
+
+        const append = (event: Parameters<typeof eventStore.append>[0]) => eventStore.append(event);
+        yield* append({
+          type: "thread.turn-start-requested",
+          eventId: EventId.make("evt-inbox-1"),
+          aggregateKind: "thread",
+          aggregateId: threadId,
+          occurredAt: "2026-02-26T15:00:00.000Z",
+          commandId: CommandId.make("cmd-inbox-1"),
+          causationEventId: null,
+          correlationId: CorrelationId.make("cmd-inbox-1"),
+          metadata: {},
+          payload: {
+            threadId,
+            messageId: MessageId.make("message-inbox-1"),
+            runtimeMode: "approval-required",
+            createdAt: "2026-02-26T15:00:00.000Z",
+          },
+        });
+        yield* append({
+          type: "thread.session-set",
+          eventId: EventId.make("evt-inbox-2"),
+          aggregateKind: "thread",
+          aggregateId: threadId,
+          occurredAt: "2026-02-26T15:00:01.000Z",
+          commandId: CommandId.make("cmd-inbox-2"),
+          causationEventId: null,
+          correlationId: CorrelationId.make("cmd-inbox-2"),
+          metadata: {},
+          payload: {
+            threadId,
+            session: {
+              threadId,
+              status: "running",
+              providerName: "codex",
+              runtimeMode: "approval-required",
+              activeTurnId: turnId,
+              lastError: null,
+              updatedAt: "2026-02-26T15:00:01.000Z",
+            },
+          },
+        });
+        yield* append({
+          type: "thread.message-sent",
+          eventId: EventId.make("evt-inbox-3"),
+          aggregateKind: "thread",
+          aggregateId: threadId,
+          occurredAt: "2026-02-26T15:00:02.000Z",
+          commandId: CommandId.make("cmd-inbox-3"),
+          causationEventId: null,
+          correlationId: CorrelationId.make("cmd-inbox-3"),
+          metadata: {},
+          payload: {
+            threadId,
+            messageId: MessageId.make("assistant-inbox-1"),
+            role: "assistant",
+            text: "完成了",
+            streaming: false,
+            turnId,
+            attachments: [],
+            createdAt: "2026-02-26T15:00:02.000Z",
+            updatedAt: "2026-02-26T15:00:02.000Z",
+          },
+        });
+        yield* append({
+          type: "thread.session-set",
+          eventId: EventId.make("evt-inbox-4"),
+          aggregateKind: "thread",
+          aggregateId: threadId,
+          occurredAt: "2026-02-26T15:00:03.000Z",
+          commandId: CommandId.make("cmd-inbox-4"),
+          causationEventId: null,
+          correlationId: CorrelationId.make("cmd-inbox-4"),
+          metadata: {},
+          payload: {
+            threadId,
+            session: {
+              threadId,
+              status: "ready",
+              providerName: "codex",
+              runtimeMode: "approval-required",
+              activeTurnId: null,
+              lastError: null,
+              updatedAt: "2026-02-26T15:00:03.000Z",
+            },
+          },
+        });
+
+        yield* projectionPipeline.bootstrap;
+        yield* projectionPipeline.bootstrap;
+
+        const rows = yield* sql<{ readonly id: string; readonly summary: string }>`
+          SELECT id, summary FROM task_inbox WHERE thread_id = ${threadId}
+        `;
+        assert.deepEqual(rows, [
+          { id: "thread-inbox-turn:turn:message-inbox-1", summary: "完成了" },
+        ]);
+
+        yield* append({
+          type: "thread.activity-appended",
+          eventId: EventId.make("evt-inbox-5"),
+          aggregateKind: "thread",
+          aggregateId: threadId,
+          occurredAt: "2026-02-26T15:00:04.000Z",
+          commandId: CommandId.make("cmd-inbox-5"),
+          causationEventId: null,
+          correlationId: CorrelationId.make("cmd-inbox-5"),
+          metadata: {},
+          payload: {
+            threadId,
+            activity: {
+              id: EventId.make("activity-inbox-approval"),
+              tone: "approval",
+              kind: "approval.requested",
+              summary: "Command approval requested",
+              payload: {
+                requestId: "approval-request-inbox-1",
+                requestKind: "command",
+              },
+              turnId,
+              createdAt: "2026-02-26T15:00:04.000Z",
+            },
+          },
+        });
+        yield* projectionPipeline.bootstrap;
+
+        const visibleRows = yield* sql<{
+          readonly id: string;
+          readonly readAt: string | null;
+        }>`SELECT id, read_at AS "readAt"
+          FROM task_inbox
+          WHERE thread_id = ${threadId} AND deleted_at IS NULL
+          ORDER BY created_at ASC`;
+        assert.deepEqual(visibleRows, [
+          { id: "thread-inbox-turn:approval:approval-request-inbox-1", readAt: null },
+        ]);
+
+        const replacedRows = yield* sql<{ readonly deletedAt: string | null }>`
+          SELECT deleted_at AS "deletedAt"
+          FROM task_inbox
+          WHERE id = ${"thread-inbox-turn:turn:message-inbox-1"}
+        `;
+        assert.deepEqual(replacedRows, [{ deletedAt: "2026-02-26T15:00:04.000Z" }]);
       }),
     );
   },

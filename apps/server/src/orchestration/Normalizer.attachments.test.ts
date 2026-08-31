@@ -8,6 +8,8 @@ import {
   type ClientOrchestrationCommand,
   CommandId,
   MessageId,
+  ProjectId,
+  ProviderInstanceId,
   ThreadId,
 } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
@@ -52,7 +54,174 @@ function turnStartCommand(input: {
   };
 }
 
+function threadCreateCommand(attachmentId: string, sizeBytes: number): ClientOrchestrationCommand {
+  return {
+    type: "thread.create",
+    commandId: CommandId.make("command-create"),
+    threadId: ThreadId.make("thread-unassigned"),
+    projectId: ProjectId.make("project-1"),
+    title: "Unassigned task",
+    task: {
+      content: "review the image",
+      attachments: [
+        {
+          type: "image",
+          id: attachmentId,
+          name: "screenshot.png",
+          mimeType: "image/png",
+          sizeBytes,
+        },
+      ],
+      statusId: "todo",
+      orderKey: "a",
+      assigned: false,
+    },
+    modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5" },
+    runtimeMode: "full-access",
+    interactionMode: "default",
+    branch: null,
+    worktreePath: null,
+    createdAt: "2026-08-01T00:00:00.000Z",
+  };
+}
+
+function threadMetaUpdateCommand(
+  attachments: ReadonlyArray<{ readonly id: string; readonly sizeBytes: number }>,
+): ClientOrchestrationCommand {
+  return {
+    type: "thread.meta.update",
+    commandId: CommandId.make("command-update"),
+    threadId: ThreadId.make("thread-edit"),
+    task: {
+      content: "review the images",
+      attachments: attachments.map((attachment) => ({
+        type: "image" as const,
+        name: "screenshot.png",
+        mimeType: "image/png",
+        ...attachment,
+      })),
+      statusId: "todo",
+      orderKey: "a",
+      assigned: false,
+    },
+  };
+}
+
 describe("normalizeDispatchCommand attachments", () => {
+  it.effect("claims newly uploaded task attachments while preserving existing references", () =>
+    Effect.gen(function* () {
+      const config = yield* ServerConfig.ServerConfig;
+      const bytes = Buffer.from("pixels");
+      const pendingId = `pending-${attachmentUuid}`;
+      const pendingPath = NodePath.join(config.attachmentsDir, `${pendingId}.png`);
+      NodeFS.writeFileSync(pendingPath, bytes);
+      const existingId = "thread-edit-00000000-0000-4000-8000-0000000000bb";
+      const missingLegacyId = "pending-00000000-0000-4000-8000-0000000000cc";
+      const command = threadMetaUpdateCommand([
+        { id: pendingId, sizeBytes: bytes.byteLength },
+        { id: existingId, sizeBytes: bytes.byteLength },
+        { id: missingLegacyId, sizeBytes: bytes.byteLength },
+      ]);
+
+      const normalized = yield* normalizeDispatchCommand(command);
+      if (normalized.type !== "thread.meta.update" || !normalized.task) {
+        throw new Error("Expected a task metadata update command.");
+      }
+
+      const claimed = normalized.task.attachments[0]!;
+      expect(claimed.id.startsWith("thread-edit-")).toBe(true);
+      expect(claimed.id).not.toBe(existingId);
+      expect(normalized.task.attachments[1]?.id).toBe(existingId);
+      expect(normalized.task.attachments[2]?.id).toBe(missingLegacyId);
+
+      yield* cleanupFailedUploadedAttachments(command, normalized);
+      expect(NodeFS.existsSync(pendingPath)).toBe(true);
+      expect(NodeFS.existsSync(NodePath.join(config.attachmentsDir, `${claimed.id}.png`))).toBe(
+        false,
+      );
+    }).pipe(Effect.provide(testLayer)),
+  );
+
+  it.effect("claims task attachments when creating an unassigned task", () =>
+    Effect.gen(function* () {
+      const config = yield* ServerConfig.ServerConfig;
+      const bytes = Buffer.from("pixels");
+      const pendingId = `pending-${attachmentUuid}`;
+      const pendingPath = NodePath.join(config.attachmentsDir, `${pendingId}.png`);
+      NodeFS.writeFileSync(pendingPath, bytes);
+      const command = threadCreateCommand(pendingId, bytes.byteLength);
+
+      const normalized = yield* normalizeDispatchCommand(command);
+      if (normalized.type !== "thread.create" || !normalized.task) {
+        throw new Error("Expected a task thread.create command.");
+      }
+
+      const attachment = normalized.task.attachments[0]!;
+      expect(attachment.id.startsWith("thread-unassigned-")).toBe(true);
+      expect(NodeFS.existsSync(pendingPath)).toBe(true);
+      expect(NodeFS.existsSync(NodePath.join(config.attachmentsDir, `${attachment.id}.png`))).toBe(
+        true,
+      );
+
+      yield* cleanupFailedUploadedAttachments(command, normalized);
+      expect(NodeFS.existsSync(pendingPath)).toBe(true);
+      expect(NodeFS.existsSync(NodePath.join(config.attachmentsDir, `${attachment.id}.png`))).toBe(
+        false,
+      );
+    }).pipe(Effect.provide(testLayer)),
+  );
+
+  it.effect("reuses the message attachment claim in bootstrap task metadata", () =>
+    Effect.gen(function* () {
+      const config = yield* ServerConfig.ServerConfig;
+      const bytes = Buffer.from("pixels");
+      const pendingId = `pending-${attachmentUuid}`;
+      NodeFS.writeFileSync(NodePath.join(config.attachmentsDir, `${pendingId}.png`), bytes);
+      const base = turnStartCommand({
+        attachments: [{ id: pendingId, sizeBytes: bytes.byteLength }],
+      });
+      if (base.type !== "thread.turn.start") throw new Error("Expected a turn start command.");
+      const taskAttachment = base.message.attachments[0];
+      if (!taskAttachment || !("id" in taskAttachment)) {
+        throw new Error("Expected an uploaded attachment.");
+      }
+      const command: ClientOrchestrationCommand = {
+        ...base,
+        bootstrap: {
+          createThread: {
+            projectId: ProjectId.make("project-1"),
+            title: "Assigned task",
+            task: {
+              content: "review the image",
+              attachments: [taskAttachment],
+              statusId: "todo",
+              orderKey: "a",
+              assigned: true,
+            },
+            modelSelection: {
+              instanceId: ProviderInstanceId.make("codex"),
+              model: "gpt-5",
+            },
+            runtimeMode: "full-access",
+            interactionMode: "default",
+            branch: null,
+            worktreePath: null,
+            createdAt: "2026-08-01T00:00:00.000Z",
+          },
+        },
+      };
+
+      const normalized = yield* normalizeDispatchCommand(command);
+      if (normalized.type !== "thread.turn.start" || !normalized.bootstrap?.createThread?.task) {
+        throw new Error("Expected task metadata in the normalized bootstrap.");
+      }
+
+      expect(normalized.bootstrap.createThread.task.attachments[0]?.id).toBe(
+        normalized.message.attachments[0]?.id,
+      );
+    }).pipe(Effect.provide(testLayer)),
+  );
+
   it.effect("preserves inline image attachments from existing mobile clients", () =>
     Effect.gen(function* () {
       const config = yield* ServerConfig.ServerConfig;

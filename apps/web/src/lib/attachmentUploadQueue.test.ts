@@ -35,6 +35,7 @@ import {
   releaseAttachmentUploads,
   retryAttachmentUpload,
   startAttachmentUpload,
+  startOrRetryAttachmentUpload,
   useAttachmentUploadStore,
 } from "./attachmentUploadQueue";
 
@@ -203,6 +204,24 @@ describe("attachmentUploadQueue", () => {
     });
 
     retryAttachmentUpload({ environmentId: firstEnvironment, image });
+    await Promise.resolve();
+    settled = awaitAttachmentUploads([image.id]);
+    TestXmlHttpRequest.requests[1]!.complete();
+    await settled;
+
+    expect(readAttachmentUpload(image.id)).toMatchObject({ status: "ready" });
+  });
+
+  it("restarts a failed upload when a submit is retried", async () => {
+    const image = makeImage("image-submit-retry");
+    startAttachmentUpload({ environmentId: firstEnvironment, image });
+    await Promise.resolve();
+
+    let settled = awaitAttachmentUploads([image.id]);
+    TestXmlHttpRequest.requests[0]!.complete(500);
+    await settled;
+
+    startOrRetryAttachmentUpload({ environmentId: firstEnvironment, image });
     await Promise.resolve();
     settled = awaitAttachmentUploads([image.id]);
     TestXmlHttpRequest.requests[1]!.complete();
