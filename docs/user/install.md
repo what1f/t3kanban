@@ -30,11 +30,11 @@ compile dependencies or download build tools on first launch.
 
 ## Linux x64
 
-Download the `x64.AppImage`, make it executable, and run it:
+Download the `x86_64.AppImage`, make it executable, and run it:
 
 ```bash
-chmod +x T3-Kanban-*-x64.AppImage
-./T3-Kanban-*-x64.AppImage
+chmod +x T3-Kanban-*-x86_64.AppImage
+./T3-Kanban-*-x86_64.AppImage
 ```
 
 AppImage support varies by distribution. Some distributions require FUSE 2 compatibility packages.

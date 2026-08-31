@@ -59,7 +59,7 @@ For `v0.1.1`, the release should include at least:
 ```text
 T3-Kanban-0.1.1-arm64.dmg
 T3-Kanban-0.1.1-arm64.zip
-T3-Kanban-0.1.1-x64.AppImage
+T3-Kanban-0.1.1-x86_64.AppImage
 T3-Kanban-0.1.1-x64.exe
 SHA256SUMS.txt
 ```
