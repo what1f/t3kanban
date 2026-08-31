@@ -36,7 +36,9 @@ jobs:
           set -euo pipefail
           pty_pkg="$(node -e "console.log(require.resolve('node-pty/package.json', { paths: ['$GITHUB_WORKSPACE/apps/server'] }))")"
           pty_dir="$(dirname "$pty_pkg")"
-          (cd "$pty_dir" && pnpm dlx node-gyp@11.4.2 rebuild)
+          # setup-vp owns dependency installation but does not expose pnpm on
+          # PATH. Use Node's bundled package runner for this pinned build tool.
+          (cd "$pty_dir" && npx --yes node-gyp@11.4.2 rebuild)
           mkdir -p wsl-prebuild
           cp "$pty_dir/build/Release/pty.node" wsl-prebuild/pty.node
           file wsl-prebuild/pty.node

@@ -34,14 +34,14 @@ after the corresponding certificates and CI credentials are available.
 ## Publish a release
 
 1. Confirm `main` contains the exact commit to release and its CI run is green.
-2. Choose a version that does not already exist in the fork. The first fork release is `v0.1.0`.
+2. Choose a version that does not already exist in the fork, such as `v0.1.1`.
 3. Create and push an annotated tag:
 
    ```bash
    git switch main
    git pull --ff-only
-   git tag -a v0.1.0 -m "T3 Kanban v0.1.0"
-   git push origin v0.1.0
+   git tag -a v0.1.1 -m "T3 Kanban v0.1.1"
+   git push origin v0.1.1
    ```
 
 4. Open the repository's Actions page and watch the **Release** workflow.
@@ -54,13 +54,13 @@ such as `v0.1.0`, are marked as the latest release.
 
 ## Expected assets
 
-For `v0.1.0`, the release should include at least:
+For `v0.1.1`, the release should include at least:
 
 ```text
-T3-Kanban-0.1.0-arm64.dmg
-T3-Kanban-0.1.0-arm64.zip
-T3-Kanban-0.1.0-x64.AppImage
-T3-Kanban-0.1.0-x64.exe
+T3-Kanban-0.1.1-arm64.dmg
+T3-Kanban-0.1.1-arm64.zip
+T3-Kanban-0.1.1-x64.AppImage
+T3-Kanban-0.1.1-x64.exe
 SHA256SUMS.txt
 ```
 
