@@ -1,58 +1,70 @@
-# Install T3 Code
+# Install T3 Kanban
 
-T3 Code is a web and desktop GUI for running coding agents on your machine.
+Download the latest package from [GitHub Releases](https://github.com/what1f/t3kanban/releases/latest).
 
-## Requirements
+T3 Kanban needs at least one supported coding-agent CLI installed and authenticated on the same
+machine. The desktop package includes the T3 Kanban server; Node.js and pnpm are needed only for
+source development.
 
-Node.js `^22.16 || ^23.11 || >=24.10` on the machine that runs the T3 Code server.
+## macOS Apple Silicon
 
-At least one provider CLI, installed and authenticated. See [Providers](#providers) below.
+Download the `arm64.dmg`, open it, and drag **T3 Kanban (Alpha)** into Applications.
 
-## Run Without Installing
+Current macOS builds are unsigned and not notarized. If Gatekeeper blocks the first launch, remove
+the quarantine attribute from this app only, then open it again:
 
 ```bash
-npx t3@latest
+xattr -dr com.apple.quarantine "/Applications/T3 Kanban (Alpha).app"
 ```
 
-This starts the T3 Code server on your machine and opens the local web app. Use
-`npx t3@latest --help` for the full CLI reference.
+This bypasses macOS source verification for that app. Use it only with a package downloaded from
+this repository's Releases page and verify its checksum first.
 
-## Desktop App
+## Windows x64
 
-Download the latest release from
-[GitHub Releases](https://github.com/pingdotgg/t3code/releases), or install from a package
-registry.
+Download the `x64.exe` installer and run it. Current Windows builds are unsigned, so Microsoft
+Defender SmartScreen may ask you to confirm before the first installation.
 
-Windows:
+The package includes the native components used by both the Windows and WSL backends; it does not
+compile dependencies or download build tools on first launch.
+
+## Linux x64
+
+Download the `x64.AppImage`, make it executable, and run it:
 
 ```bash
-winget install T3Tools.T3Code
+chmod +x T3-Kanban-*-x64.AppImage
+./T3-Kanban-*-x64.AppImage
 ```
 
-macOS:
+AppImage support varies by distribution. Some distributions require FUSE 2 compatibility packages.
+
+## Verify a download
+
+Each release includes `SHA256SUMS.txt`. From the directory containing the downloaded package and
+checksum file, run:
 
 ```bash
-brew install --cask t3-code
+sha256sum --check SHA256SUMS.txt --ignore-missing
 ```
 
-Arch Linux:
-
-Stable:
+On macOS, calculate the downloaded DMG's checksum and compare it with the matching line in
+`SHA256SUMS.txt`:
 
 ```bash
-yay -S t3code-bin
+shasum -a 256 T3-Kanban-*-arm64.dmg
 ```
 
-Nightly:
+On Windows PowerShell, use:
 
-```bash
-yay -S t3code-nightly-bin
+```powershell
+Get-FileHash .\T3-Kanban-*-x64.exe -Algorithm SHA256
 ```
 
 ## Providers
 
-T3 Code drives provider CLIs; it does not ship them. Install the CLI for each provider you want
-to use, then authenticate it.
+T3 Kanban drives provider CLIs; it does not ship them. Install and authenticate each provider on
+the machine running T3 Kanban.
 
 | Provider   | CLI                                                   | Default binary | Log in with           |
 | ---------- | ----------------------------------------------------- | -------------- | --------------------- |
@@ -62,34 +74,18 @@ to use, then authenticate it.
 | Grok Build | [Grok Build CLI](https://x.ai/cli)                    | `grok`         | `grok login`          |
 | OpenCode   | [OpenCode](https://opencode.ai)                       | `opencode`     | `opencode auth login` |
 
-Codex and Claude are on by default. Cursor, Grok Build, and OpenCode are off by default; turn
-them on in **Settings** → the provider's card when you want to use them.
+Codex and Claude are enabled by default. Cursor, Grok Build, and OpenCode can be enabled from the
+corresponding provider card in **Settings**.
 
-Cursor is the one to watch: install Cursor CLI, which provides the `cursor-agent` binary that
-T3 Code looks for, but authenticate with `agent login`, not `cursor-agent login`.
-
-Run the login command on the machine running the T3 Code server, not on the device you browse
-from.
-
-### Binary Discovery
-
-Each provider CLI must be on the server's `PATH`, or have an explicit binary path set in
-**Settings** → the provider instance → **Binary path**. Use the explicit path when a version
-manager or a non-standard install location keeps the CLI off the `PATH` of the shell that
-started T3 Code.
-
-### When Auth Is Needed
-
-Provider auth is required before you start a session with that provider, not before you start
-T3 Code. You can install T3 Code, open it, and add providers afterwards. A provider that is not
-authenticated shows its status in **Settings** and fails at session start with the login command
-to run.
+Each provider CLI must be on the desktop app's `PATH`, or have an explicit binary path configured
+in **Settings**. Provider authentication is needed when starting a session with that provider, not
+when installing T3 Kanban.
 
 For multi-account setups, see [Codex](./providers-codex.md) and [Claude](./providers-claude.md).
 
-## Next Steps
+## Next steps
 
-- [Permission modes](./permission-modes.md): how much T3 Code asks before acting
-- [Remote access](./remote-access.md): connect from a phone, tablet, or another desktop
-- [Keeping T3 Code in sync](./updating.md): client and server version skew
-- [Running in the background](./background-service.md): Linux background service
+- [Permission modes](./permission-modes.md)
+- [Remote access](./remote-access.md)
+- [Keeping clients and servers in sync](./updating.md)
+- [Running in the background](./background-service.md)

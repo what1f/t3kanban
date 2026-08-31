@@ -18,12 +18,15 @@
 </p>
 
 <p align="center">
-  Web · macOS · Local-first · MIT
+  Web · macOS · Windows · Linux · Local-first · MIT
 </p>
 
 ![T3 Kanban 任务看板，展示 Todo、In Progress、In Review、Blocked 和 Done 中的工作](./assets/readme/task-board.png)
 
 ## 快速开始
+
+想直接使用桌面端？可从 [Releases](https://github.com/what1f/t3kanban/releases/latest)
+下载 macOS Apple Silicon、Windows x64 或 Linux x64 安装包。
 
 **环境要求：** Node.js `^24.13.1`、pnpm `11.10.0`，以及至少一个已经完成登录的 Coding Agent CLI。
 
@@ -95,7 +98,7 @@ xattr -dr com.apple.quarantine "/Applications/T3 Kanban (Alpha).app"
 
 ## 项目状态
 
-T3 Kanban 目前处于 Alpha 阶段，主要面向本地 Web 与 macOS 桌面使用。任务工作流和数据迁移仍在快速迭代，升级前请查看发布说明。
+T3 Kanban 目前处于 Alpha 阶段，支持本地 Web、macOS、Windows 与 Linux。任务工作流和数据迁移仍在快速迭代，升级前请查看发布说明。
 
 ## 基于 T3 Code
 

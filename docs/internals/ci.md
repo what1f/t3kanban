@@ -21,10 +21,10 @@ and pushes to `main`:
 - **Release Smoke**: exercises release-only workflow steps through `scripts/release-smoke.ts`, so
   release breakage surfaces on PRs rather than at tag time.
 
-`.github/workflows/release.yml` builds macOS (`arm64` and `x64`), Linux (`x64`), and Windows (`x64`)
-desktop artifacts from a single `v*.*.*` tag and publishes one GitHub release. It auto-enables
-signing only when platform credentials are present. macOS passkey builds additionally require
-`APPLE_TEAM_ID` and the `MACOS_PROVISIONING_PROFILE` secret; Windows uses Azure Trusted Signing.
-Without the core signing credentials, it still releases unsigned artifacts.
+`.github/workflows/release.yml` builds macOS Apple Silicon (`arm64`), Linux (`x64`), and Windows
+(`x64`) desktop artifacts from a single `v*.*.*` tag and publishes one GitHub Release after every
+platform succeeds. The workflow uses standard GitHub-hosted runners and publishes unsigned
+packages, update metadata, blockmaps, and a SHA-256 checksum manifest. The Windows build also
+bundles the Linux `node-pty` binary required by its WSL backend.
 
 See [Release Checklist](../operations/release.md) for the full release/signing setup checklist.

@@ -18,12 +18,15 @@
 </p>
 
 <p align="center">
-  Web · macOS · Local-first · MIT
+  Web · macOS · Windows · Linux · Local-first · MIT
 </p>
 
 ![T3 Kanban task board showing work across Todo, In Progress, In Review, Blocked, and Done](./assets/readme/task-board.png)
 
 ## Quick start
+
+Want the desktop app? [Download the latest release](https://github.com/what1f/t3kanban/releases/latest)
+for macOS Apple Silicon, Windows x64, or Linux x64.
 
 **Prerequisites:** Node.js `^24.13.1`, pnpm `11.10.0`, and at least one authenticated coding-agent CLI.
 
@@ -97,7 +100,7 @@ Then open the app again. This bypasses macOS source verification for that app, s
 
 ## Project status
 
-T3 Kanban is alpha software focused on local Web and macOS desktop use. The task workflow and data migrations are still evolving; check release notes before upgrading.
+T3 Kanban is alpha software for local Web, macOS, Windows, and Linux use. The task workflow and data migrations are still evolving; check release notes before upgrading.
 
 ## Built on T3 Code
 
