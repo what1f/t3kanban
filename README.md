@@ -103,6 +103,10 @@ T3 Kanban is alpha software focused on local Web and macOS desktop use. The task
 
 T3 Kanban is built on [T3 Code](https://github.com/pingdotgg/t3code) and reuses its agent harnesses, conversations, approvals, diffs, workspaces, and remote connectivity. See the upstream project for those foundation capabilities; this repository focuses on the task-first workflow added on top.
 
+## Contributing
+
+Bug reports and focused pull requests are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) before starting a substantial change.
+
 ## License
 
 [MIT](./LICENSE). The original T3 Code copyright and license notices are retained.

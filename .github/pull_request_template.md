@@ -1,33 +1,21 @@
-<!--
-⚠️ READ BEFORE OPENING ⚠️
+## What changed
 
-We are not actively accepting contributions right now.
-
-You can still open a PR, but please do so knowing there is a high chance
-we may close it without merging it, or never review it.
-
-- Small, focused PRs are strongly preferred. Bug fixes are most likely to be merged.
-- New features will most likely just annoy us.
-- 1,000+ line PRs with a bunch of new features will probably get you banned from the repo.
--->
-
-## What Changed
-
-<!-- Describe the change clearly and keep scope tight. -->
+<!-- Describe the user-visible or technical change. -->
 
 ## Why
 
-<!-- Explain the problem being solved and why this approach is the right one. -->
+<!-- Explain the problem and why this approach fits T3 Kanban. -->
 
-## UI Changes
+## Verification
 
-<!-- If this PR changes UI, include clear before/after screenshots.
-     If the change involves motion or interaction, include a short video.
-     Delete this section if not applicable. -->
+<!-- List focused tests, type checks, and manual checks. -->
+
+## Visual evidence
+
+<!-- Add before/after screenshots for UI changes and a short recording for motion or interaction changes. Remove this section when it does not apply. -->
 
 ## Checklist
 
-- [ ] This PR is small and focused
-- [ ] I explained what changed and why
-- [ ] I included before/after screenshots for any UI changes
-- [ ] I included a video for animation/interaction changes
+- [ ] The change is focused and does not include unrelated cleanup.
+- [ ] Relevant tests and type checks pass.
+- [ ] User-facing behavior and documentation are updated where needed.

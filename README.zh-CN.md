@@ -101,6 +101,10 @@ T3 Kanban 目前处于 Alpha 阶段，主要面向本地 Web 与 macOS 桌面使
 
 T3 Kanban 基于 [T3 Code](https://github.com/pingdotgg/t3code) 构建，复用其 Agent Harness、对话、审批、Diff、工作区与远程连接能力。基础能力请查看上游项目；本仓库重点介绍在此之上新增的任务优先工作流。
 
+## 参与贡献
+
+欢迎提交 Bug 和边界清晰的 Pull Request。开始较大的改动前，请先阅读 [CONTRIBUTING.md](./CONTRIBUTING.md)。
+
 ## License
 
 [MIT](./LICENSE)。本仓库保留 T3 Code 的原始版权与许可证信息。
