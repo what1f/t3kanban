@@ -4,7 +4,10 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import {
   type ClientOrchestrationCommand,
+  type ChatAttachment,
   type ChatImageAttachment,
+  type UserInputAttachments,
+  PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
   type IsoDateTime,
   type OrchestrationCommand,
   OrchestrationDispatchCommandError,
@@ -135,18 +138,23 @@ export const normalizeDispatchCommand = (command: ClientOrchestrationCommand) =>
     }
 
     const claimedAttachmentPaths: string[] = [];
-    const normalizedUploadedAttachments = new Map<string, ChatImageAttachment>();
+    const normalizedUploadedAttachments = new Map<string, ChatAttachment>();
     const normalizeAttachments = (
       threadId: string,
-      attachments: ReadonlyArray<ChatImageAttachment | UploadChatImageAttachment>,
-      options?: { readonly preserveExistingTaskReferences?: boolean },
+      attachments: ReadonlyArray<ChatAttachment | UploadChatImageAttachment>,
+      options?: {
+        readonly preserveExistingTaskReferences?: boolean;
+        readonly reuseNormalizedUpload?: boolean;
+      },
     ) =>
       Effect.forEach(
         attachments,
         (attachment) =>
           Effect.gen(function* () {
             if (!("dataUrl" in attachment)) {
-              const cached = normalizedUploadedAttachments.get(attachment.id);
+              const cached = options?.reuseNormalizedUpload
+                ? normalizedUploadedAttachments.get(attachment.id)
+                : undefined;
               if (cached) return cached;
 
               const requestedSegment = parseThreadSegmentFromAttachmentId(attachment.id);
@@ -162,20 +170,20 @@ export const normalizeDispatchCommand = (command: ClientOrchestrationCommand) =>
                 return {
                   ...attachment,
                   mimeType: attachment.mimeType.toLowerCase(),
-                } satisfies ChatImageAttachment;
+                } satisfies ChatAttachment;
               }
               if (requestedSegment === threadSegment) {
                 const normalizedAttachment = {
                   ...attachment,
                   mimeType: attachment.mimeType.toLowerCase(),
-                } satisfies ChatImageAttachment;
+                } satisfies ChatAttachment;
                 const attachmentPath = resolveAttachmentPath({
                   attachmentsDir: serverConfig.attachmentsDir,
                   attachment: normalizedAttachment,
                 });
                 if (!attachmentPath) {
                   return yield* new OrchestrationDispatchCommandError({
-                    message: `Attachment '${attachment.name}' cannot be used: image type does not match the stored file.`,
+                    message: `Attachment '${attachment.name}' cannot be used: attachment type does not match the stored file.`,
                   });
                 }
                 const info = yield* fileSystem.stat(attachmentPath).pipe(
@@ -233,7 +241,7 @@ export const normalizeDispatchCommand = (command: ClientOrchestrationCommand) =>
               });
               if (expectedPath !== claim.finalPath) {
                 return yield* new OrchestrationDispatchCommandError({
-                  message: `Attachment '${attachment.name}' cannot be sent: image type does not match the upload.`,
+                  message: `Attachment '${attachment.name}' cannot be sent: attachment type does not match the upload.`,
                 });
               }
 
@@ -281,6 +289,7 @@ export const normalizeDispatchCommand = (command: ClientOrchestrationCommand) =>
               name: attachment.name,
               mimeType: parsed.mimeType.toLowerCase(),
               sizeBytes: bytes.byteLength,
+              ...(attachment.source ? { source: attachment.source } : {}),
             };
 
             const attachmentPath = resolveAttachmentPath({
@@ -320,9 +329,13 @@ export const normalizeDispatchCommand = (command: ClientOrchestrationCommand) =>
       task: Omit<ThreadTaskDetails, "attachments"> & {
         readonly attachments: ReadonlyArray<ChatImageAttachment | UploadChatImageAttachment>;
       },
+      reuseNormalizedUpload = false,
     ) =>
-      normalizeAttachments(threadId, task.attachments).pipe(
-        Effect.map((attachments) => ({ ...task, attachments })),
+      normalizeAttachments(threadId, task.attachments, { reuseNormalizedUpload }).pipe(
+        Effect.map((attachments) => ({
+          ...task,
+          attachments: attachments as ReadonlyArray<ChatImageAttachment>,
+        })),
       );
 
     const normalizedCommand = yield* Effect.gen(function* () {
@@ -340,7 +353,41 @@ export const normalizeDispatchCommand = (command: ClientOrchestrationCommand) =>
             canonicalCommand.threadId,
             canonicalCommand.task.attachments,
             { preserveExistingTaskReferences: true },
-          ).pipe(Effect.map((attachments) => ({ ...canonicalCommand.task!, attachments }))),
+          ).pipe(
+            Effect.map((attachments) => ({
+              ...canonicalCommand.task!,
+              attachments: attachments as ReadonlyArray<ChatImageAttachment>,
+            })),
+          ),
+        } satisfies OrchestrationCommand;
+      }
+
+      if (canonicalCommand.type === "thread.user-input.respond") {
+        const originalEntries = Object.entries(canonicalCommand.attachmentsByQuestionId ?? {});
+        const originalAttachments = originalEntries.flatMap(([, attachments]) => attachments);
+        if (originalAttachments.length > PROVIDER_SEND_TURN_MAX_ATTACHMENTS) {
+          return yield* new OrchestrationDispatchCommandError({
+            message: `You can attach up to ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} files per question response.`,
+          });
+        }
+        const attachments = yield* normalizeAttachments(
+          canonicalCommand.threadId,
+          originalAttachments,
+        );
+        let index = 0;
+        const attachmentsByQuestionId = Object.fromEntries(
+          originalEntries.map(([questionId, originals]) => {
+            const claimed = attachments.slice(
+              index,
+              index + originals.length,
+            ) as UserInputAttachments[string];
+            index += originals.length;
+            return [questionId, claimed];
+          }),
+        );
+        return {
+          ...canonicalCommand,
+          ...(originalAttachments.length > 0 ? { attachmentsByQuestionId } : {}),
         } satisfies OrchestrationCommand;
       }
 
@@ -358,7 +405,7 @@ export const normalizeDispatchCommand = (command: ClientOrchestrationCommand) =>
           ? createThread
           : {
               ...createThread,
-              task: yield* normalizeTask(canonicalCommand.threadId, createThread.task),
+              task: yield* normalizeTask(canonicalCommand.threadId, createThread.task, true),
             };
 
       return {
@@ -387,8 +434,8 @@ export const cleanupFailedUploadedAttachments = Effect.fn(
   const serverConfig = yield* ServerConfig;
   const claimedPaths: string[] = [];
   const collectClaimedPaths = (
-    originals: ReadonlyArray<ChatImageAttachment | UploadChatImageAttachment>,
-    normalized: ReadonlyArray<ChatImageAttachment>,
+    originals: ReadonlyArray<ChatAttachment | UploadChatImageAttachment>,
+    normalized: ReadonlyArray<ChatAttachment>,
   ) => {
     for (const [index, attachment] of normalized.entries()) {
       const original = originals[index];
@@ -410,6 +457,14 @@ export const cleanupFailedUploadedAttachments = Effect.fn(
 
   if (command.type === "thread.turn.start" && normalizedCommand.type === "thread.turn.start") {
     collectClaimedPaths(command.message.attachments, normalizedCommand.message.attachments);
+  } else if (
+    command.type === "thread.user-input.respond" &&
+    normalizedCommand.type === "thread.user-input.respond"
+  ) {
+    collectClaimedPaths(
+      Object.values(command.attachmentsByQuestionId ?? {}).flat(),
+      Object.values(normalizedCommand.attachmentsByQuestionId ?? {}).flat(),
+    );
   } else if (command.type === "thread.create" && normalizedCommand.type === "thread.create") {
     if (command.task && normalizedCommand.task) {
       collectClaimedPaths(command.task.attachments, normalizedCommand.task.attachments);

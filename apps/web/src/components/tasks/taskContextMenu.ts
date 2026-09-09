@@ -21,12 +21,10 @@ export interface TaskContextMenuInput {
 export function buildTaskContextMenuItems(
   input: TaskContextMenuInput,
 ): ReadonlyArray<ContextMenuItem<TaskContextMenuAction>> {
-  const statusChildren = input.statuses.map(
-    (status): ContextMenuItem<TaskContextMenuAction> => ({
-      id: `status:${status.id}`,
-      label: status.id === input.currentStatusId ? `${status.name} ✓` : status.name,
-    }),
-  );
+  const statusChildren = input.statuses.map((status): ContextMenuItem<TaskContextMenuAction> => ({
+    id: `status:${status.id}`,
+    label: status.id === input.currentStatusId ? `${status.name} ✓` : status.name,
+  }));
   return [
     statusChildren.length > 0
       ? {

@@ -25,7 +25,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useAssetUrl } from "../../assets/assetUrls";
+import { useAssetUrls } from "../../assets/assetUrls";
 import type { ComposerImageAttachment } from "../../composerDraftStore";
 import { usePrimarySettings, useEnvironmentSettings } from "../../hooks/useSettings";
 import {
@@ -33,7 +33,6 @@ import {
   getUploadedAttachments,
   readAttachmentUpload,
   releaseAttachmentUpload,
-  releaseAttachmentUploads,
   startOrRetryAttachmentUpload,
 } from "../../lib/attachmentUploadQueue";
 import { isHeicImageFile, prepareImageForAttachment } from "../../lib/imageCompression";
@@ -76,7 +75,7 @@ function ExistingTaskImage({
   environmentId: EnvironmentId;
   attachment: ChatImageAttachment;
 }) {
-  const url = useAssetUrl(environmentId, { _tag: "attachment", attachmentId: attachment.id });
+  const [url] = useAssetUrls(environmentId, [{ _tag: "attachment", attachmentId: attachment.id }]);
   return url ? (
     <img
       src={url}
@@ -138,32 +137,7 @@ export function CreateTaskDialog({
   const optionSelectionSource = editingTask?.modelSelection ?? lastSelection;
   const entrySignature = entries.map((candidate) => candidate.instanceId).join("\n");
   const rememberedSelectionSignature = JSON.stringify(lastSelection);
-  const configured = entry ? settings.providerInstances?.[entry.instanceId]?.config : null;
-  const instanceModels =
-    configured &&
-    typeof configured === "object" &&
-    Array.isArray((configured as { customModels?: unknown }).customModels)
-      ? (configured as { customModels: unknown[] }).customModels.filter(
-          (value): value is string => typeof value === "string",
-        )
-      : [];
-  const legacyProvider = entry
-    ? settings.providers[entry.driverKind as keyof typeof settings.providers]
-    : null;
-  const configuredModels = [
-    ...new Set([...instanceModels, ...(legacyProvider?.customModels ?? [])]),
-  ];
-  const models = entry
-    ? [
-        ...getAppModelOptionsForInstance(settings, entry),
-        ...configuredModels
-          .filter(
-            (slug) =>
-              !getAppModelOptionsForInstance(settings, entry).some((model) => model.slug === slug),
-          )
-          .map((slug) => ({ slug, name: slug, isCustom: true })),
-      ]
-    : [];
+  const models = entry ? getAppModelOptionsForInstance(settings, entry) : [];
   const model = entry
     ? resolveAppModelSelectionForInstance(
         entry.instanceId,
@@ -385,7 +359,7 @@ export function CreateTaskDialog({
           }
         }
         if (!uploaded) throw new Error("Image upload failed. Try again.");
-        attachments = [...existingAttachments, ...uploaded];
+        attachments = [...existingAttachments, ...(uploaded as ReadonlyArray<ChatImageAttachment>)];
       }
 
       const threadId = editingTask?.id ?? newThreadId();
@@ -527,7 +501,7 @@ export function CreateTaskDialog({
         if (result._tag === "Failure") throw squashAtomCommandFailure(result);
       }
 
-      releaseAttachmentUploads(images);
+      for (const image of images) releaseAttachmentUpload(image.id);
       if (!editingTask) {
         await navigate({
           to: "/",

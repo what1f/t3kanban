@@ -57,7 +57,7 @@ export const TaskWorkbenchMutation = Schema.Union([
 ]);
 export type TaskWorkbenchMutation = typeof TaskWorkbenchMutation.Type;
 
-export class TaskWorkbenchError extends Schema.TaggedErrorClass<TaskWorkbenchError>()(
+export class TaskWorkbenchError extends Schema.TaggedError<TaskWorkbenchError>()(
   "TaskWorkbenchError",
   { message: Schema.String },
 ) {}

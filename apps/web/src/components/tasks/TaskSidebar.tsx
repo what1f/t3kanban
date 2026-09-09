@@ -293,12 +293,7 @@ export default function TaskSidebar() {
                       onClick={closeMobile}
                       className="flex min-w-0 flex-1 items-center gap-2.5 px-1 py-1.5 text-sm text-sidebar-foreground/80"
                     >
-                      <ProjectFavicon
-                        environmentId={project.environmentId}
-                        cwd={project.workspaceRoot}
-                        faviconPath={project.faviconPath}
-                        className="size-4"
-                      />
+                      <ProjectFavicon project={project} className="size-4" />
                       <span className="truncate">{project.title}</span>
                     </Link>
                     <div className="flex shrink-0 items-center gap-0.5">

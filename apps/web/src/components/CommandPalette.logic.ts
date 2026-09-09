@@ -9,6 +9,7 @@ import * as Arr from "effect/Array";
 import * as Result from "effect/Result";
 import { type ReactNode } from "react";
 import { sortThreads } from "../lib/threadSort";
+import { normalizeSearchText } from "../lib/utils";
 import { formatRelativeTimeLabel } from "../timestampFormat";
 import { type Project, type SidebarThreadSummary, type Thread } from "../types";
 
@@ -146,24 +147,31 @@ export function enumerateCommandPaletteItems(
 
 export type CommandPaletteMode = "root" | "root-browse" | "submenu" | "submenu-browse";
 
-export function normalizeSearchText(value: string): string {
-  return value.trim().toLowerCase().replace(/\s+/g, " ");
-}
+// A project as the palette shows it. `displayName` is the grouped label (for
+// example "owner/repo" when projects are merged across machines). Keep `title`
+// as the real project title: the automatic project icon is derived from it, and
+// every other surface uses the real title, so overriding it desyncs the icon.
+export type CommandPaletteProject = Project & { readonly displayName: string };
 
 export function buildProjectActionItems(input: {
-  projects: ReadonlyArray<Project>;
+  projects: ReadonlyArray<CommandPaletteProject>;
   valuePrefix: string;
-  icon: (project: Project) => ReactNode;
-  runProject: (project: Project) => Promise<void>;
-  searchTerms?: (project: Project) => ReadonlyArray<string>;
-  renderDescription?: (project: Project) => ReactNode;
+  icon: (project: CommandPaletteProject) => ReactNode;
+  runProject: (project: CommandPaletteProject) => Promise<void>;
+  searchTerms?: (project: CommandPaletteProject) => ReadonlyArray<string>;
+  renderDescription?: (project: CommandPaletteProject) => ReactNode;
   shortcutCommand?: KeybindingCommand;
 }): CommandPaletteActionItem[] {
   return input.projects.map((project) => ({
     kind: "action",
     value: `${input.valuePrefix}:${project.environmentId}:${project.id}`,
-    searchTerms: [project.title, project.workspaceRoot, ...(input.searchTerms?.(project) ?? [])],
-    title: project.title,
+    searchTerms: [
+      project.displayName,
+      project.title,
+      project.workspaceRoot,
+      ...(input.searchTerms?.(project) ?? []),
+    ],
+    title: project.displayName,
     description: input.renderDescription?.(project) ?? project.workspaceRoot,
     icon: input.icon(project),
     ...(input.shortcutCommand !== undefined ? { shortcutCommand: input.shortcutCommand } : {}),
@@ -263,9 +271,16 @@ export function buildThreadActionItems<TThread extends BuildThreadActionItemsThr
   });
 }
 
-function rankSearchFieldMatch(field: string, normalizedQuery: string): number {
+function rankSearchFieldMatch(
+  field: string,
+  normalizedQuery: string,
+  queryTokens: ReadonlyArray<string>,
+): number {
   const normalizedField = normalizeSearchText(field);
-  if (normalizedField.length === 0 || !normalizedField.includes(normalizedQuery)) {
+  if (
+    normalizedField.length === 0 ||
+    !queryTokens.every((token) => normalizedField.includes(token))
+  ) {
     return Number.NEGATIVE_INFINITY;
   }
   if (normalizedField === normalizedQuery) {
@@ -274,12 +289,16 @@ function rankSearchFieldMatch(field: string, normalizedQuery: string): number {
   if (normalizedField.startsWith(normalizedQuery)) {
     return 2;
   }
-  return 1;
+  if (normalizedField.includes(normalizedQuery)) {
+    return 1;
+  }
+  return 0;
 }
 
 function rankCommandPaletteItemMatch(
   item: CommandPaletteActionItem | CommandPaletteSubmenuItem,
   normalizedQuery: string,
+  queryTokens: ReadonlyArray<string>,
 ): number {
   const terms = item.searchTerms.filter((term) => term.length > 0);
   if (terms.length === 0) {
@@ -287,7 +306,7 @@ function rankCommandPaletteItemMatch(
   }
 
   for (const [index, field] of terms.entries()) {
-    const fieldRank = rankSearchFieldMatch(field, normalizedQuery);
+    const fieldRank = rankSearchFieldMatch(field, normalizedQuery, queryTokens);
     if (fieldRank !== Number.NEGATIVE_INFINITY) {
       return 1_000 - index * 100 + fieldRank;
     }
@@ -301,6 +320,7 @@ export function filterCommandPaletteGroups(input: {
   query: string;
   isInSubmenu: boolean;
   projectSearchItems: ReadonlyArray<CommandPaletteActionItem>;
+  settingsSearchItems?: ReadonlyArray<CommandPaletteActionItem>;
   threadSearchItems: ReadonlyArray<CommandPaletteActionItem>;
 }): CommandPaletteGroup[] {
   const isActionsFilter = input.query.startsWith(">");
@@ -313,6 +333,7 @@ export function filterCommandPaletteGroups(input: {
     }
     return [...input.activeGroups];
   }
+  const queryTokens = normalizedQuery.split(" ");
 
   let baseGroups = [...input.activeGroups];
   if (isActionsFilter) {
@@ -330,6 +351,13 @@ export function filterCommandPaletteGroups(input: {
         items: input.projectSearchItems,
       });
     }
+    if (input.settingsSearchItems && input.settingsSearchItems.length > 0) {
+      searchableGroups.push({
+        value: "settings-search",
+        label: "Settings",
+        items: input.settingsSearchItems,
+      });
+    }
     if (input.threadSearchItems.length > 0) {
       searchableGroups.push({
         value: "threads-search",
@@ -342,14 +370,14 @@ export function filterCommandPaletteGroups(input: {
   return searchableGroups.flatMap((group) => {
     const items = Arr.filterMap(group.items, (item, index) => {
       const haystack = normalizeSearchText(item.searchTerms.join(" "));
-      if (!haystack.includes(normalizedQuery)) {
+      if (!queryTokens.every((token) => haystack.includes(token))) {
         return Result.failVoid;
       }
 
       return Result.succeed({
         item,
         index,
-        rank: rankCommandPaletteItemMatch(item, normalizedQuery),
+        rank: rankCommandPaletteItemMatch(item, normalizedQuery, queryTokens),
       });
     })
       .toSorted((left, right) => right.rank - left.rank || left.index - right.index)

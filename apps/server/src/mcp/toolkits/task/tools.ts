@@ -5,7 +5,7 @@ import { Tool, Toolkit } from "effect/unstable/ai";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import { TaskWorkbench } from "../../../taskWorkbench.ts";
 
-export class TaskToolError extends Schema.TaggedErrorClass<TaskToolError>()("TaskToolError", {
+export class TaskToolError extends Schema.TaggedError<TaskToolError>()("TaskToolError", {
   message: Schema.String,
 }) {}
 

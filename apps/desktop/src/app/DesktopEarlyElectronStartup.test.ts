@@ -81,7 +81,9 @@ describe("DesktopEarlyElectronStartup", () => {
     });
 
     assert.deepEqual(options, {
+      isDevelopment: true,
       linuxWmClass: "t3kanban-dev",
+      linuxDesktopEntryName: "com.t3tools.T3Kanban.Development.desktop",
       passwordStore: "gnome-libsecret",
     });
   });

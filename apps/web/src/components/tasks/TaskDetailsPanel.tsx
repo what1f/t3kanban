@@ -7,7 +7,7 @@ import {
 import { useRouter } from "@tanstack/react-router";
 import { ArrowLeftIcon, CheckIcon, EyeIcon, SquarePenIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useAssetUrl } from "../../assets/assetUrls";
+import { useAssetUrls } from "../../assets/assetUrls";
 import { useProject, useThread, useServerConfigs } from "../../state/entities";
 import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import { threadEnvironment } from "../../state/threads";
@@ -25,7 +25,7 @@ function TaskImage({
   environmentId: EnvironmentId;
   attachment: ChatImageAttachment;
 }) {
-  const url = useAssetUrl(environmentId, { _tag: "attachment", attachmentId: attachment.id });
+  const [url] = useAssetUrls(environmentId, [{ _tag: "attachment", attachmentId: attachment.id }]);
   return url ? (
     <a href={url} target="_blank" rel="noreferrer">
       <img
