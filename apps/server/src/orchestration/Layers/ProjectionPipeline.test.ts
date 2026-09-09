@@ -3945,6 +3945,85 @@ it.layer(makeProjectionPipelinePrefixedTestLayer("t3-pending-turn-terminal-test-
       }),
     );
 
+    it.effect("does not create a notification when a task status changes", () =>
+      Effect.gen(function* () {
+        const projectionPipeline = yield* OrchestrationProjectionPipeline;
+        const eventStore = yield* OrchestrationEventStore;
+        const sql = yield* SqlClient.SqlClient;
+        const threadId = ThreadId.make("thread-inbox-status");
+        const createdAt = "2026-02-26T16:00:00.000Z";
+
+        yield* eventStore.append({
+          type: "thread.created",
+          eventId: EventId.make("evt-inbox-status-created"),
+          aggregateKind: "thread",
+          aggregateId: threadId,
+          occurredAt: createdAt,
+          commandId: CommandId.make("cmd-inbox-status-created"),
+          causationEventId: null,
+          correlationId: CorrelationId.make("cmd-inbox-status-created"),
+          metadata: {},
+          payload: {
+            threadId,
+            projectId: ProjectId.make("project-inbox-status"),
+            title: "Inbox status",
+            task: {
+              content: "Track status",
+              attachments: [],
+              statusId: "todo",
+              orderKey: createdAt,
+            },
+            modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5" },
+            runtimeMode: "full-access",
+            branch: null,
+            worktreePath: null,
+            createdAt,
+            updatedAt: createdAt,
+          },
+        });
+        yield* eventStore.append({
+          type: "thread.meta-updated",
+          eventId: EventId.make("evt-inbox-status-updated"),
+          aggregateKind: "thread",
+          aggregateId: threadId,
+          occurredAt: "2026-02-26T16:00:01.000Z",
+          commandId: CommandId.make("cmd-inbox-status-updated"),
+          causationEventId: null,
+          correlationId: CorrelationId.make("cmd-inbox-status-updated"),
+          metadata: {},
+          payload: {
+            threadId,
+            task: {
+              content: "Track status",
+              attachments: [],
+              statusId: "done",
+              orderKey: createdAt,
+            },
+            updatedAt: "2026-02-26T16:00:01.000Z",
+          },
+        });
+
+        yield* projectionPipeline.bootstrap;
+
+        const notificationRows = yield* sql<{ readonly id: string }>`
+          SELECT id FROM task_inbox WHERE thread_id = ${threadId}
+        `;
+        assert.deepEqual(notificationRows, []);
+
+        const taskRows = yield* sql<{ readonly taskJson: string | null }>`
+          SELECT task_json AS "taskJson"
+          FROM projection_threads
+          WHERE thread_id = ${threadId}
+        `;
+        assert.deepEqual(JSON.parse(taskRows[0]?.taskJson ?? "null"), {
+          content: "Track status",
+          attachments: [],
+          statusId: "done",
+          orderKey: createdAt,
+        });
+      }),
+    );
+
     it.effect("only clears the compact request that produced the compaction activity", () =>
       Effect.gen(function* () {
         const projectionPipeline = yield* OrchestrationProjectionPipeline;
