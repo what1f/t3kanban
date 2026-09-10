@@ -102,7 +102,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y imagemagick
+          sudo apt-get install -y imagemagick libsecret-1-dev pkg-config
 
       - name: Download WSL node-pty
         if: matrix.platform == 'win'
