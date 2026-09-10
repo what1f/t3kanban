@@ -68,7 +68,7 @@ jobs:
       - name: Verify preload bundle output
         run: node apps/desktop/scripts/verify-preload-bundle.mjs
 
-  # Everything except `t3` (apps/server). `--parallel` drops the package
+  # Everything except the root package and `t3` (apps/server). `--parallel` drops the package
   # dependency ordering that `vp run` applies by default: these `test` tasks
   # declare no `dependsOn` and resolve workspace deps from source, so ordering
   # only bought us idle runners between dependency layers. The concurrency
@@ -107,7 +107,7 @@ jobs:
         run: node --test .github/scripts/check-nightly-release.test.cjs
 
       - name: Test
-        run: vp run --parallel --concurrency-limit 4 --filter '!t3' --filter '!@t3tools/monorepo' test
+        run: vp run --parallel --concurrency-limit 4 --filter '!t3' --filter '!t3kanban' test
 
   # apps/server sets `fileParallelism: false`, so its 239 files run strictly
   # one at a time. Sharding spreads them over separate runners instead of
