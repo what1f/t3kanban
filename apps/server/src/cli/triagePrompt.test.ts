@@ -13,13 +13,19 @@ import {
 
 it("stays byte-identical to .github/triage/PLAYBOOK.md", () => {
   // Old releases fetch the repo copy from `main` and follow it when it differs
-  // from their bundled playbook. The two must say the same thing at HEAD, or a
-  // playbook edit silently changes behavior only for old (or only for new)
-  // installs. Edit both files together.
+  // from their bundled playbook. When the canonical copy is present, the two
+  // must say the same thing at HEAD, or a playbook edit silently changes
+  // behavior only for old (or only for new) installs. The public fork omits
+  // the upstream-only triage playbook, so keep testing the embedded fallback
+  // without requiring that internal file to exist.
   const canonicalPath = NodePath.join(
     import.meta.dirname,
     "../../../../.github/triage/PLAYBOOK.md",
   );
+  if (!NodeFS.existsSync(canonicalPath)) {
+    assert.include(TRIAGE_PLAYBOOK, "# T3 Code triage playbook");
+    return;
+  }
   assert.equal(TRIAGE_PLAYBOOK, NodeFS.readFileSync(canonicalPath, "utf8"));
 });
 
