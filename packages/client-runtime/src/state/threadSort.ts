@@ -196,7 +196,7 @@ function orderKeyMidpoint(a: string, b: string): string {
     the pinned block" / "bottom of the keyed run". Returns null instead of
     throwing when existing keys are corrupt or out of order — callers fall
     back to rewriting the section. */
-export function orderKeyBetween(before: string | null, after: string | null): string | null {
+function orderKeyBetween(before: string | null, after: string | null): string | null {
   const a = before ?? "";
   const b = after ?? "";
   if (a !== "" && !isValidOrderKey(a)) return null;
@@ -205,7 +205,9 @@ export function orderKeyBetween(before: string | null, after: string | null): st
   return orderKeyMidpoint(a, b);
 }
 
-export const pinOrderKeyBetween = orderKeyBetween;
+export function pinOrderKeyBetween(before: string | null, after: string | null): string | null {
+  return orderKeyBetween(before, after);
+}
 
 /** Evenly spaced keys for materializing an order. Wider keys keep a large
     active list from exhausting the space between two-digit keys. */
@@ -275,7 +277,11 @@ export function planOrderKeyReorder(input: {
   });
 }
 
-export const planPinnedReorder = planOrderKeyReorder;
+export function planPinnedReorder(
+  input: Parameters<typeof planOrderKeyReorder>[0],
+): ReturnType<typeof planOrderKeyReorder> {
+  return planOrderKeyReorder(input);
+}
 
 /**
  * Pinned block order: user-arranged keys first (string comparison, id

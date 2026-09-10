@@ -15,7 +15,7 @@ const repoRoot = NodePath.resolve(desktopDir, "..", "..");
 const devBundleIdSuffix = NodePath.basename(repoRoot)
   .toLowerCase()
   .replaceAll(/[^a-z0-9]+/g, "");
-export const APP_DISPLAY_NAME = isDevelopment ? "T3 Kanban (Dev)" : "T3 Kanban (Alpha)";
+const APP_DISPLAY_NAME = isDevelopment ? "T3 Kanban (Dev)" : "T3 Kanban (Alpha)";
 const APP_BUNDLE_ID = isDevelopment
   ? `com.t3tools.t3kanban.dev.${devBundleIdSuffix || "local"}`
   : "com.t3tools.t3kanban";

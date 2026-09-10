@@ -41,7 +41,7 @@ export const UpdateCurrentTaskInput = Schema.Struct({
   status: Schema.optional(Schema.String),
 });
 
-export const UpdateCurrentTaskTool = Tool.make("update_task", {
+const UpdateCurrentTaskTool = Tool.make("update_task", {
   description:
     "Update the task bound to this agent session. Supply one or more of title, status, or content. For long Markdown, use content_file with a file inside the task workspace instead of content; content and content_file are mutually exclusive.",
   parameters: UpdateCurrentTaskInput,

@@ -15,7 +15,6 @@ import { AsyncResult, Atom } from "effect/unstable/reactivity";
 
 import { environmentCatalog } from "../connection/catalog";
 import { connectionAtomRuntime } from "../connection/runtime";
-import { isHostedStaticApp } from "../hostedPairing";
 
 export const shellEnvironment = createShellEnvironmentAtoms(connectionAtomRuntime);
 export const environmentShell = createEnvironmentShellAtoms(connectionAtomRuntime);
@@ -72,10 +71,3 @@ export function createAllEnvironmentProjectSnapshotsReadyAtom(input: {
     return true;
   }).pipe(Atom.withLabel("web-all-environment-project-snapshots-ready"));
 }
-
-export const allEnvironmentProjectSnapshotsReadyAtom =
-  createAllEnvironmentProjectSnapshotsReadyAtom({
-    catalogValueAtom: environmentCatalog.catalogValueAtom,
-    shellStateValueAtom: environmentShell.stateValueAtom,
-    requiresPrimaryEnvironment: !isHostedStaticApp(),
-  });

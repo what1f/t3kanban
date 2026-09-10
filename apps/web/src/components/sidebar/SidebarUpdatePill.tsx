@@ -1,5 +1,4 @@
 import type { DesktopUpdateState } from "@t3tools/contracts";
-import { TriangleAlertIcon } from "lucide-react";
 import { type ComponentProps, useCallback, useEffect, useId, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { isElectron } from "../../env";
@@ -10,17 +9,14 @@ import { useDesktopUpdateState } from "../../state/desktopUpdate";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import {
   canCheckForUpdate,
-  getArm64IntelBuildWarningDescription,
   getDesktopUpdateActionError,
   getDesktopUpdateButtonTooltip,
   getDesktopUpdateInstallConfirmationMessage,
   isDesktopUpdateButtonDisabled,
   resolveDesktopUpdateButtonAction,
-  shouldShowArm64IntelBuildWarning,
   shouldToastDesktopUpdateActionResult,
 } from "../desktopUpdate.logic";
 import { showDesktopUpdateDownloadedToast } from "../desktopUpdate.toast";
-import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Popover, PopoverCreateHandle, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { SidebarMenuItem } from "../ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -86,26 +82,6 @@ function resolveSidebarUpdatePresentation({
     showUpdateDetails,
     showUpdateIconState: showUpdateDetails && !showCheckIcon,
   } as const;
-}
-
-export function SidebarUpdateArchitectureWarning() {
-  return isElectron ? <SidebarUpdateArchitectureWarningContent /> : null;
-}
-
-function SidebarUpdateArchitectureWarningContent() {
-  const state = useDesktopUpdateState();
-  const visible = shouldShowArm64IntelBuildWarning(state);
-  const description = state && visible ? getArm64IntelBuildWarningDescription(state) : null;
-
-  if (!visible || !description) return null;
-
-  return (
-    <Alert variant="warning" className="rounded-2xl border-warning/40 bg-warning/8 text-xs">
-      <TriangleAlertIcon />
-      <AlertTitle>Intel build on Apple Silicon</AlertTitle>
-      <AlertDescription>{description}</AlertDescription>
-    </Alert>
-  );
 }
 
 export function SidebarUpdatePill() {

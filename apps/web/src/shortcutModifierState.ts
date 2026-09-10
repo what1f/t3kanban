@@ -1,18 +1,9 @@
-import { useEffect, useState } from "react";
-
 export interface ShortcutModifierState {
   metaKey: boolean;
   ctrlKey: boolean;
   altKey: boolean;
   shiftKey: boolean;
 }
-
-const EMPTY_SHORTCUT_MODIFIER_STATE: ShortcutModifierState = {
-  metaKey: false,
-  ctrlKey: false,
-  altKey: false,
-  shiftKey: false,
-};
 
 export function areShortcutModifierStatesEqual(
   left: ShortcutModifierState,
@@ -24,41 +15,6 @@ export function areShortcutModifierStatesEqual(
     left.altKey === right.altKey &&
     left.shiftKey === right.shiftKey
   );
-}
-
-export function useShortcutModifierState(): ShortcutModifierState {
-  const [state, setState] = useState(EMPTY_SHORTCUT_MODIFIER_STATE);
-
-  useEffect(() => {
-    const onKeyboardEvent = (event: KeyboardEvent) => {
-      setState((current) => shortcutModifierStateAfterKeyboardEvent(current, event));
-    };
-    // Dictation tools (Wispr Flow) paste with a synthetic ⌘V whose Meta keyup
-    // never reaches the page, so the tracked state stays "⌘ held" forever and
-    // the thread jump hints stick on screen. A paste is never jump intent, so
-    // treat it like a blur and reset. A physically held modifier re-registers
-    // on the next real key event.
-    const onResetEvent = () => {
-      setState((current) =>
-        areShortcutModifierStatesEqual(current, EMPTY_SHORTCUT_MODIFIER_STATE)
-          ? current
-          : EMPTY_SHORTCUT_MODIFIER_STATE,
-      );
-    };
-
-    window.addEventListener("keydown", onKeyboardEvent, true);
-    window.addEventListener("keyup", onKeyboardEvent, true);
-    window.addEventListener("paste", onResetEvent, true);
-    window.addEventListener("blur", onResetEvent);
-    return () => {
-      window.removeEventListener("keydown", onKeyboardEvent, true);
-      window.removeEventListener("keyup", onKeyboardEvent, true);
-      window.removeEventListener("paste", onResetEvent, true);
-      window.removeEventListener("blur", onResetEvent);
-    };
-  }, []);
-
-  return state;
 }
 
 function normalizeModifierKey(key: string): keyof ShortcutModifierState | null {

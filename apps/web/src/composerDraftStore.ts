@@ -4116,17 +4116,6 @@ export function useComposerThreadDraft(threadRef: ComposerThreadTarget): Compose
   });
 }
 
-/**
- * True when a real thread's composer holds unsent user content. Selects a
- * boolean so the sidebar row that reads it re-renders only when the draft
- * appears or disappears, not on every keystroke.
- */
-export function useThreadHasUnsentDraft(threadRef: ScopedThreadRef): boolean {
-  return useComposerDraftStore((state) =>
-    composerDraftHasUserContent(getComposerDraftState(state, threadRef)),
-  );
-}
-
 function useComposerDraftModelState(threadRef: ComposerThreadTarget): ComposerDraftModelState {
   return useComposerDraftStore(
     useShallow((state) => {
