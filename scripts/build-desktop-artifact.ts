@@ -2115,7 +2115,7 @@ const verifyPackagedBundleIsSelfContained = Effect.fn("verifyPackagedBundleIsSel
       });
     }
 
-    const probeEnv = { ...process.env, NODE_PATH: "" };
+    const probeEnv: NodeJS.ProcessEnv = { ...process.env, NODE_PATH: "" };
     delete probeEnv.ELECTRON_RUN_AS_NODE;
 
     // --version exercises the eagerly loaded module graph, which is where a
