@@ -83,13 +83,13 @@ describe("DesktopPreReadyPlatform", () => {
         vi.stubEnv("XDG_DATA_HOME", "/xdg");
         vi.stubEnv("APPIMAGE", "/Applications/current.AppImage");
         getSwitchValueMock.mockReturnValue("");
-        let desktopName = "t3code.desktop";
+        let desktopName = "t3kanban.desktop";
         let desktopEntry = previousEntry;
         setDesktopNameMock.mockImplementation((name: string) => {
           desktopName = name;
         });
         writeFileSyncMock.mockImplementation((path: string, contents: string) => {
-          if (path === "/xdg/applications/com.t3tools.T3Code.desktop") desktopEntry = contents;
+          if (path === "/xdg/applications/com.t3tools.T3Kanban.desktop") desktopEntry = contents;
         });
 
         return Effect.scoped(
@@ -101,10 +101,10 @@ describe("DesktopPreReadyPlatform", () => {
               ),
             );
             const identity = yield* Effect.promise(() => portalIdentity);
-            assert.equal(identity.desktopName, "com.t3tools.T3Code.desktop");
+            assert.equal(identity.desktopName, "com.t3tools.T3Kanban.desktop");
             assert.include(identity.desktopEntry ?? "", 'Exec="/Applications/current.AppImage" %U');
-            assert.include(identity.desktopEntry ?? "", "Name=T3 Code (Alpha)");
-            assert.include(identity.desktopEntry ?? "", "MimeType=x-scheme-handler/t3code;");
+            assert.include(identity.desktopEntry ?? "", "Name=T3 Kanban (Alpha)");
+            assert.include(identity.desktopEntry ?? "", "MimeType=x-scheme-handler/t3kanban;");
           }),
         ).pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllEnvs())));
       },
