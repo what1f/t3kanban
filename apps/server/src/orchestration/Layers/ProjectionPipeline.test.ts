@@ -4015,15 +4015,15 @@ it.layer(makeProjectionPipelinePrefixedTestLayer("t3-pending-turn-terminal-test-
           FROM projection_threads
           WHERE thread_id = ${threadId}
         `;
-        assert.deepEqual(
-          Schema.decodeUnknownSync(Schema.UnknownFromJsonString)(taskRows[0]?.taskJson ?? "null"),
-          {
-            content: "Track status",
-            attachments: [],
-            statusId: "done",
-            orderKey: createdAt,
-          },
+        const task = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown))(
+          taskRows[0]?.taskJson ?? "null",
         );
+        assert.deepEqual(task, {
+          content: "Track status",
+          attachments: [],
+          statusId: "done",
+          orderKey: createdAt,
+        });
       }),
     );
 
